@@ -1,0 +1,342 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-burgundy-midnight: #200000;
+    --color-burgundy-deep: #330205;
+    --color-burgundy-royal: #4B0507;
+    --color-burgundy-crimson: #650C0C;
+
+    --color-gold-dark: #785020;
+    --color-gold-antique: #B9873F;
+    --color-gold-champagne: #D9AD61;
+    --color-gold-light: #F0D18B;
+  }
+
+  body {
+    background-color: #200000;
+    color: #F0D18B;
+    font-family: 'Poppins', system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-display, .font-serif-luxury {
+    font-family: 'Montserrat', sans-serif;
+    letter-spacing: 0.03em;
+  }
+
+  .font-montserrat {
+    font-family: 'Montserrat', sans-serif;
+  }
+
+  .font-poppins, .font-sans-clean {
+    font-family: 'Poppins', system-ui, sans-serif;
+  }
+
+  .font-cormorant {
+    font-family: 'Montserrat', sans-serif;
+  }
+}
+
+/* Luxury gold text gradients */
+.gold-gradient-text {
+  background: linear-gradient(135deg, #F0D18B 0%, #D9AD61 50%, #B9873F 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gold-gradient-bright {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F0D18B 40%, #D9AD61 80%, #785020 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Subtle gold border hairlines */
+.border-gold-subtle {
+  border-color: rgba(217, 173, 97, 0.22);
+}
+
+.border-gold-glow {
+  border-color: rgba(240, 209, 139, 0.45);
+  box-shadow: 0 0 15px rgba(185, 135, 63, 0.15);
+}
+
+/* Regal card background */
+.card-regal {
+  background: linear-gradient(180deg, rgba(75, 5, 7, 0.5) 0%, rgba(32, 0, 0, 0.8) 100%);
+  border: 1px solid rgba(217, 173, 97, 0.2);
+}
+
+.card-regal-hover {
+  transition: border-color 280ms ease, box-shadow 280ms ease, transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.card-regal-hover:hover {
+  border-color: rgba(240, 209, 139, 0.48);
+  box-shadow: 0 12px 32px -10px rgba(185, 135, 63, 0.24);
+  transform: translateY(-2px);
+}
+
+/* Primary gold button hover glow & tactile press */
+.btn-gold-glow {
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), filter 220ms ease, box-shadow 280ms ease;
+}
+
+.btn-gold-glow:hover {
+  box-shadow: 0 0 28px rgba(240, 209, 139, 0.45), 0 4px 16px rgba(185, 135, 63, 0.28);
+}
+
+.btn-gold-glow:active {
+  transform: scale(0.98);
+}
+
+/* Soft image reveal transition */
+@keyframes softImageReveal {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.image-reveal {
+  animation: softImageReveal 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Gentle ambient lighting pulse in hero backdrop */
+@keyframes heroAmbientPulse {
+  0%, 100% {
+    opacity: 0.72;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+}
+
+.hero-ambient-glow {
+  animation: heroAmbientPulse 8s ease-in-out infinite;
+}
+
+/* Animated gold divider hairline shimmer */
+@keyframes dividerReveal {
+  from {
+    opacity: 0.35;
+    transform: scaleX(0.45);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+.gold-divider-line {
+  transform-origin: center;
+  animation: dividerReveal 850ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 240ms ease-out both;
+}
+
+@keyframes routeEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.route-transition {
+  animation: routeEnter 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes introEmblemIn {
+  from {
+    opacity: 0.25;
+    transform: scale(0.94) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes introRiseIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes introGlowIn {
+  from {
+    opacity: 0.15;
+    transform: translate(-50%, -50%) scale(0.88);
+  }
+  to {
+    opacity: 0.42;
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+}
+
+.intro-emblem {
+  animation: introEmblemIn 700ms cubic-bezier(0.645, 0.045, 0.355, 1) 0ms both;
+}
+
+.intro-title {
+  animation: introRiseIn 650ms cubic-bezier(0.645, 0.045, 0.355, 1) 420ms both;
+}
+
+.intro-line {
+  transform-origin: center;
+  animation: dividerReveal 550ms cubic-bezier(0.645, 0.045, 0.355, 1) 720ms both;
+}
+
+.intro-theme {
+  animation: introRiseIn 650ms cubic-bezier(0.645, 0.045, 0.355, 1) 920ms both;
+}
+
+.intro-dates {
+  animation: introRiseIn 600ms cubic-bezier(0.645, 0.045, 0.355, 1) 1240ms both;
+}
+
+.intro-glow {
+  transform: translate(-50%, -50%);
+  animation: introGlowIn 1400ms cubic-bezier(0.645, 0.045, 0.355, 1) both;
+}
+
+@keyframes slowOrbit {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@keyframes slowOrbitReverse {
+  from {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+}
+
+@keyframes goldSheenSweep {
+  0% {
+    transform: translateX(-140%) skewX(-20deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.45;
+  }
+  80% {
+    opacity: 0.45;
+  }
+  100% {
+    transform: translateX(220%) skewX(-20deg);
+    opacity: 0;
+  }
+}
+
+@keyframes eqBarBounce {
+  0%, 100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.intro-orbit {
+  transform: translate(-50%, -50%);
+  animation: slowOrbit 26s cubic-bezier(0.645, 0.045, 0.355, 1) infinite;
+}
+
+.intro-orbit-reverse {
+  transform: translate(-50%, -50%);
+  animation: slowOrbitReverse 36s cubic-bezier(0.645, 0.045, 0.355, 1) infinite;
+}
+
+.intro-sheen {
+  animation: goldSheenSweep 2.2s cubic-bezier(0.645, 0.045, 0.355, 1) 0.55s both;
+}
+
+.eq-bar-1 {
+  transform-origin: bottom;
+  animation: eqBarBounce 0.65s ease-in-out infinite;
+}
+
+.eq-bar-2 {
+  transform-origin: bottom;
+  animation: eqBarBounce 0.85s ease-in-out 0.15s infinite;
+}
+
+.eq-bar-3 {
+  transform-origin: bottom;
+  animation: eqBarBounce 0.72s ease-in-out 0.3s infinite;
+}
+
+/* Respect accessibility reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .image-reveal,
+  .hero-ambient-glow,
+  .gold-divider-line,
+  .animate-fadeIn,
+  .route-transition,
+  .intro-emblem,
+  .intro-title,
+  .intro-line,
+  .intro-theme,
+  .intro-dates,
+  .intro-glow,
+  .intro-orbit,
+  .intro-orbit-reverse,
+  .intro-sheen,
+  .eq-bar-1,
+  .eq-bar-2,
+  .eq-bar-3 {
+    animation: none !important;
+  }
+  .card-regal-hover:hover {
+    transform: none;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #200000;
+}
+::-webkit-scrollbar-thumb {
+  background: #785020;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #B9873F;
+}
