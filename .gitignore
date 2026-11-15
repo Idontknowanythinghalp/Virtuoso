@@ -1,8 +1,23 @@
+# Dependencies
 node_modules/
+bun.lock
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+
+# Build & coverage
 build/
 dist/
 coverage/
-.DS_Store
-*.log
+*.tsbuildinfo
+
+# Environment variables (never commit real secrets)
 .env*
 !.env.example
+
+# System & logs
+.DS_Store
+*.log
+npm-debug.log*
