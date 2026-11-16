@@ -6,21 +6,27 @@ import { usePathname } from "next/navigation";
 import {
   Award,
   ClipboardCheck,
+  FileSearch,
   FolderArchive,
   LayoutDashboard,
+  LogOut,
   Menu,
   Scale,
   ShieldCheck,
+  UserCog,
   Users,
   X,
 } from "lucide-react";
 import { CMS_MODULES } from "@/lib/navigation";
 import { siteConfig } from "@/lib/site-config";
 import type { BreadcrumbItem, CmsModuleSlug } from "@/types/cms";
+import { formatOrganiserRole, type OrganiserSessionUser } from "@/types/auth";
 import { BrandMark } from "@/components/cms/BrandMark";
+import { signOutOrganiserAction } from "@/app/actions/auth";
 
 interface CmsShellProps {
   breadcrumbs: BreadcrumbItem[];
+  user: OrganiserSessionUser;
   children: React.ReactNode;
 }
 
@@ -39,10 +45,11 @@ const MODULE_ICONS: Record<CmsModuleSlug, React.ReactNode> = {
   ),
 };
 
-export function CmsShell({ breadcrumbs, children }: CmsShellProps) {
+export function CmsShell({ breadcrumbs, user, children }: CmsShellProps) {
   const pathname = usePathname();
   const [openAtPathname, setOpenAtPathname] = useState<string | null>(null);
   const mobileNavOpen = openAtPathname === pathname;
+  const isSuperAdmin = user.role === "super_admin";
 
   useEffect(() => {
     if (!mobileNavOpen) return;
@@ -96,6 +103,45 @@ export function CmsShell({ breadcrumbs, children }: CmsShellProps) {
             </Link>
           </div>
 
+          {isSuperAdmin ? (
+            <div className="space-y-1">
+              <p className="px-2.5 text-xs font-medium text-slate-500">
+                Administration
+              </p>
+              <ul className="space-y-1">
+                <li>
+                  <Link
+                    href="/admin/accounts"
+                    className={`flex min-h-10 items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507] ${
+                      pathname === "/admin/accounts"
+                        ? "bg-[#4B0507] text-white"
+                        : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                    }`}
+                  >
+                    <UserCog className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span className="truncate">Organiser Accounts</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/admin/audit-logs"
+                    className={`flex min-h-10 items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507] ${
+                      pathname === "/admin/audit-logs"
+                        ? "bg-[#4B0507] text-white"
+                        : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                    }`}
+                  >
+                    <FileSearch
+                      className="h-4 w-4 shrink-0"
+                      aria-hidden="true"
+                    />
+                    <span className="truncate">Audit Log</span>
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          ) : null}
+
           <div className="space-y-1">
             <p className="px-2.5 text-xs font-medium text-slate-500">
               Planned Modules
@@ -126,24 +172,45 @@ export function CmsShell({ breadcrumbs, children }: CmsShellProps) {
         </nav>
       </div>
 
-      <div className="border-t border-slate-200 p-4">
-        <div className="flex items-center gap-3">
-          <BrandMark
-            src="/brand/sjcc-logo.png"
-            alt="St. Joseph's College of Commerce"
-            className="h-7 w-7 shrink-0 rounded bg-[#200000] object-contain p-0.5"
-            fallbackLabel="SJCC"
-          />
-          <BrandMark
-            src="/brand/bba-logo.png"
-            alt="Department of Business Administration"
-            className="h-7 w-auto max-w-[72px] shrink-0 rounded bg-[#200000] object-contain px-1.5 py-0.5"
-            fallbackLabel="BBA"
-          />
+      <div className="space-y-4 border-t border-slate-200 p-4">
+        <div className="space-y-1">
+          <p className="truncate text-sm font-medium text-slate-900">
+            {user.fullName}
+          </p>
+          <p className="truncate text-xs text-slate-500">
+            {formatOrganiserRole(user.role)}
+          </p>
         </div>
-        <p className="mt-2.5 text-xs leading-snug text-slate-500">
-          {siteConfig.institution}
-        </p>
+
+        <form action={signOutOrganiserAction}>
+          <button
+            type="submit"
+            className="flex min-h-10 w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium whitespace-nowrap text-slate-800 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
+          >
+            <LogOut className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>Sign Out</span>
+          </button>
+        </form>
+
+        <div className="border-t border-slate-100 pt-3">
+          <div className="flex items-center gap-3">
+            <BrandMark
+              src="/brand/sjcc-logo.png"
+              alt="St. Joseph's College of Commerce"
+              className="h-7 w-7 shrink-0 rounded bg-[#200000] object-contain p-0.5"
+              fallbackLabel="SJCC"
+            />
+            <BrandMark
+              src="/brand/bba-logo.png"
+              alt="Department of Business Administration"
+              className="h-7 w-auto max-w-[72px] shrink-0 rounded bg-[#200000] object-contain px-1.5 py-0.5"
+              fallbackLabel="BBA"
+            />
+          </div>
+          <p className="mt-2 text-xs leading-snug text-slate-500">
+            {siteConfig.institution}
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -198,7 +265,10 @@ export function CmsShell({ breadcrumbs, children }: CmsShellProps) {
               <Menu className="h-5 w-5" aria-hidden="true" />
             </button>
 
-            <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 text-sm">
+            <nav
+              aria-label="Breadcrumb"
+              className="flex min-w-0 items-center gap-2 text-sm"
+            >
               {breadcrumbs.map((crumb, index) => {
                 const isLast = index === breadcrumbs.length - 1;
                 return (
@@ -233,14 +303,14 @@ export function CmsShell({ breadcrumbs, children }: CmsShellProps) {
           </div>
 
           <div className="flex shrink-0 items-center gap-4 text-xs text-slate-600">
-            <span className="hidden whitespace-nowrap sm:inline">
-              {siteConfig.stageTitle}
+            <span className="hidden max-w-[180px] truncate font-medium text-slate-900 sm:inline">
+              {user.fullName}
             </span>
             <span className="hidden text-slate-300 sm:inline" aria-hidden="true">
               ·
             </span>
-            <span className="whitespace-nowrap font-medium text-amber-800">
-              Unauthenticated Shell
+            <span className="whitespace-nowrap font-medium text-[#4B0507]">
+              {formatOrganiserRole(user.role)}
             </span>
           </div>
         </header>

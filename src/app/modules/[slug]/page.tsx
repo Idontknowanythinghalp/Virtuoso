@@ -4,12 +4,12 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Layers } from "lucide-react";
 import { CmsShell } from "@/components/layout/CmsShell";
 import { AuthNoticeBanner } from "@/components/cms/AuthNoticeBanner";
-import { CMS_MODULES, getCmsModuleBySlug } from "@/lib/navigation";
+import { getCmsModuleBySlug } from "@/lib/navigation";
 import { siteConfig } from "@/lib/site-config";
+import { requireActiveUser } from "@/lib/auth/guards";
+import { ALL_ORGANISER_ROLES } from "@/lib/auth/policy";
 
-export function generateStaticParams() {
-  return CMS_MODULES.map((mod) => ({ slug: mod.slug }));
-}
+export const dynamic = "force-dynamic";
 
 interface ModulePlaceholderPageProps {
   params: Promise<{ slug: string }>;
@@ -18,6 +18,10 @@ interface ModulePlaceholderPageProps {
 export default async function ModulePlaceholderPage({
   params,
 }: ModulePlaceholderPageProps) {
+  const { sessionUser } = await requireActiveUser(ALL_ORGANISER_ROLES, {
+    routeLabel: "/modules/[slug]",
+  });
+
   const { slug } = await params;
   const cmsModule = getCmsModuleBySlug(slug);
 
@@ -27,6 +31,7 @@ export default async function ModulePlaceholderPage({
 
   return (
     <CmsShell
+      user={sessionUser}
       breadcrumbs={[
         { label: siteConfig.appName, href: "/" },
         { label: "Planned Modules", href: "/" },
@@ -35,7 +40,7 @@ export default async function ModulePlaceholderPage({
     >
       <section className="space-y-2 border-b border-slate-200 pb-6">
         <p className="text-xs font-medium text-[#4B0507]">
-          {cmsModule.stageLabel} · {cmsModule.status}
+          {cmsModule.stageLabel} · {cmsModule.status} (Not Yet Implemented)
         </p>
         <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
           {cmsModule.title}
@@ -45,7 +50,7 @@ export default async function ModulePlaceholderPage({
         </p>
       </section>
 
-      <AuthNoticeBanner />
+      <AuthNoticeBanner user={sessionUser} />
 
       <section
         aria-label={`${cmsModule.title} module status`}
@@ -58,12 +63,12 @@ export default async function ModulePlaceholderPage({
 
           <div className="space-y-2">
             <h2 className="font-display text-lg font-semibold text-slate-900">
-              Module Not Yet Connected
+              Module Not Yet Implemented
             </h2>
             <p className="text-sm leading-relaxed text-slate-600">
-              No competition data, database tables, or interactive workflows are
-              active in this placeholder route during Stage 1A. When this module
-              is implemented in a subsequent stage, it will cover:
+              This route is protected by organiser authentication, but no
+              competition data, scoring tables, or domain workflows are active
+              yet during Stage 1B. Upcoming stages will cover:
             </p>
           </div>
 
@@ -82,9 +87,9 @@ export default async function ModulePlaceholderPage({
           <div className="pt-2">
             <Link
               href="/"
-              className="inline-flex min-h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
+              className="inline-flex min-h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium whitespace-nowrap text-slate-800 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
             >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
               <span>Return to System Overview</span>
             </Link>
           </div>

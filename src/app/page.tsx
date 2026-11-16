@@ -1,9 +1,16 @@
 import React from "react";
+import Link from "next/link";
+import { ArrowRight, FileSearch, UserCog } from "lucide-react";
 import { CmsShell } from "@/components/layout/CmsShell";
 import { AuthNoticeBanner } from "@/components/cms/AuthNoticeBanner";
 import { ModuleOverviewGrid } from "@/components/cms/ModuleOverviewGrid";
 import { CMS_MODULES } from "@/lib/navigation";
 import { siteConfig } from "@/lib/site-config";
+import { requireActiveUser } from "@/lib/auth/guards";
+import { ALL_ORGANISER_ROLES } from "@/lib/auth/policy";
+import { formatOrganiserRole } from "@/types/auth";
+
+export const dynamic = "force-dynamic";
 
 const FOUNDATION_CHECKLIST = [
   {
@@ -14,39 +21,50 @@ const FOUNDATION_CHECKLIST = [
   },
   {
     id: "02",
-    area: "Styling & Lint Tooling",
-    scope: "Tailwind CSS v4 and ESLint (eslint-config-next)",
+    area: "Supabase Auth & SSR Session Refresh",
+    scope: "Browser/server/admin clients, proxy.ts refresh, login and logout",
     state: "Configured",
   },
   {
     id: "03",
-    area: "Environment Separation",
-    scope: ".env.example placeholders with zero client-exposed secrets",
+    area: "Organiser Roles & Server Guards",
+    scope: "Super Admin & Event Coordinator profiles with requireActiveUser()",
     state: "Configured",
   },
   {
     id: "04",
-    area: "Authentication & Roles",
-    scope: "Supabase Auth, session management, and RBAC permissions",
-    state: "Deferred",
+    area: "Row Level Security & Audit Logs",
+    scope: "Versioned SQL migrations, strict RLS policies, immutable audit trail",
+    state: "Configured",
   },
   {
     id: "05",
-    area: "Database Schema & RLS",
-    scope: "PostgreSQL tables, migrations, and row-level security policies",
-    state: "Deferred",
+    area: "Events, Rounds & Deployment",
+    scope: "Competition setup, round creation, and deployment controls",
+    state: "Not Yet Implemented",
   },
   {
     id: "06",
-    area: "Competition & Scoring Workflows",
-    scope: "Events, contingents, judging sheets, results, and audit logs",
-    state: "Deferred",
+    area: "Competitor Portal",
+    scope: "Separate team login interface for deployed round access",
+    state: "Not Yet Implemented",
   },
 ] as const;
 
-export default function HomePage() {
+export default async function HomePage() {
+  const { sessionUser } = await requireActiveUser(ALL_ORGANISER_ROLES, {
+    routeLabel: "/",
+  });
+  const isSuperAdmin = sessionUser.role === "super_admin";
+
   return (
-    <CmsShell breadcrumbs={[{ label: siteConfig.appName, href: "/" }, { label: "System Overview" }]}>
+    <CmsShell
+      user={sessionUser}
+      breadcrumbs={[
+        { label: siteConfig.appName, href: "/" },
+        { label: "System Overview" },
+      ]}
+    >
       <section className="space-y-2 border-b border-slate-200 pb-6">
         <p className="text-xs font-medium text-[#4B0507]">
           {siteConfig.institution} · {siteConfig.department}
@@ -55,38 +73,95 @@ export default function HomePage() {
           Virtuoso Competition Management System
         </h1>
         <p className="max-w-3xl text-sm leading-relaxed text-slate-600 sm:text-base">
-          Administrative foundation shell for managing Virtuoso competitions,
-          contingents, judging workflows, and official results. This Stage 1A
-          build establishes the application architecture prior to authentication
-          and database integration.
+          Protected organiser workspace for Virtuoso (4–5 December 2026). Signed
+          in as{" "}
+          <span className="font-medium text-slate-900">
+            {sessionUser.fullName}
+          </span>{" "}
+          ({formatOrganiserRole(sessionUser.role)}).
         </p>
       </section>
 
-      <AuthNoticeBanner />
+      <AuthNoticeBanner user={sessionUser} />
 
-      <section
-        aria-label="Temporary Git bundle download"
-        className="flex flex-col gap-3 rounded-lg border border-slate-300 bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
-      >
-        <div className="space-y-1">
-          <h2 className="text-sm font-semibold text-slate-900">
-            Temporary Stage 1A Git Bundle Export
-          </h2>
-          <p className="text-sm text-slate-600">
-            Download <span className="font-mono text-xs">virtuoso-stage1a.bundle</span>{" "}
-            (1.8 MB) directly from this preview window to push commit{" "}
-            <span className="font-mono text-xs">3ef4367</span> to{" "}
-            <span className="font-mono text-xs">cms-foundation</span>.
-          </p>
-        </div>
-        <a
-          href="/api/stage1a-bundle"
-          download="virtuoso-stage1a.bundle"
-          className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-md bg-[#4B0507] px-4 py-2 text-sm font-medium whitespace-nowrap text-white transition-colors hover:bg-[#330205] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
-        >
-          Download Bundle (1.8 MB)
-        </a>
-      </section>
+      {isSuperAdmin ? (
+        <section aria-labelledby="admin-tools-heading" className="space-y-4">
+          <div>
+            <h2
+              id="admin-tools-heading"
+              className="font-display text-lg font-semibold tracking-tight text-slate-900"
+            >
+              Super Admin Governance
+            </h2>
+            <p className="text-sm text-slate-600">
+              Provision organiser accounts, manage activation status, and review
+              immutable security audit records.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Link
+              href="/admin/accounts"
+              className="group flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-5 transition-colors hover:border-slate-300 hover:bg-slate-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
+            >
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-[#4B0507]">
+                    <UserCog className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  <span className="text-xs font-medium text-emerald-700">
+                    Active in Stage 1B
+                  </span>
+                </div>
+                <h3 className="font-display text-base font-semibold text-slate-900 group-hover:text-[#4B0507]">
+                  Organiser Accounts
+                </h3>
+                <p className="text-sm leading-relaxed text-slate-600">
+                  Create Event Coordinator accounts, assign roles, and activate
+                  or deactivate organiser access.
+                </p>
+              </div>
+              <div className="mt-4 flex items-center gap-1.5 border-t border-slate-100 pt-3 text-xs font-medium text-slate-700 group-hover:text-[#4B0507]">
+                <span>Manage organiser accounts</span>
+                <ArrowRight
+                  className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
+                  aria-hidden="true"
+                />
+              </div>
+            </Link>
+
+            <Link
+              href="/admin/audit-logs"
+              className="group flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-5 transition-colors hover:border-slate-300 hover:bg-slate-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
+            >
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-[#4B0507]">
+                    <FileSearch className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  <span className="text-xs font-medium text-emerald-700">
+                    Active in Stage 1B
+                  </span>
+                </div>
+                <h3 className="font-display text-base font-semibold text-slate-900 group-hover:text-[#4B0507]">
+                  Security Audit Log
+                </h3>
+                <p className="text-sm leading-relaxed text-slate-600">
+                  Inspect append-only records of account provisioning, role
+                  changes, status toggles, and sign-in events.
+                </p>
+              </div>
+              <div className="mt-4 flex items-center gap-1.5 border-t border-slate-100 pt-3 text-xs font-medium text-slate-700 group-hover:text-[#4B0507]">
+                <span>Open audit log viewer</span>
+                <ArrowRight
+                  className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
+                  aria-hidden="true"
+                />
+              </div>
+            </Link>
+          </div>
+        </section>
+      ) : null}
 
       <ModuleOverviewGrid modules={CMS_MODULES} />
 
@@ -96,10 +171,10 @@ export default function HomePage() {
             id="foundation-status-heading"
             className="font-display text-lg font-semibold tracking-tight text-slate-900"
           >
-            Foundation Readiness
+            Platform Readiness
           </h2>
           <p className="text-sm text-slate-600">
-            Current implementation boundary for Stage 1A.
+            Current implementation boundary for Stage 1B.
           </p>
         </div>
 

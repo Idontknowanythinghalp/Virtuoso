@@ -15,9 +15,9 @@ coverage/
 
 # Environment variables (never commit real secrets)
 .env*
-!.env.example
-
+.env.local
 # System & logs
 .DS_Store
 *.log
 npm-debug.log*
+

@@ -3,6 +3,6 @@ export const siteConfig = {
   institution: "St. Joseph's College of Commerce (Autonomous)",
   department: "Department of Business Administration",
   location: "Bengaluru",
-  stageTitle: "Stage 1A Foundation",
-  authConfigured: false,
+  stageTitle: "Stage 1B Secure Organiser",
+  authConfigured: true,
 } as const;
