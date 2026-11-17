@@ -58,6 +58,15 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user && !isPublicPath(pathname)) {
+    if (pathname.startsWith("/api/imports")) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Authentication is required. Please sign in again.",
+        },
+        { status: 401 },
+      );
+    }
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     if (pathname !== "/") {
