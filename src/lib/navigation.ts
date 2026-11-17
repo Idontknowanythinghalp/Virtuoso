@@ -3,32 +3,32 @@ import type { CmsModuleDefinition, CmsModuleSlug } from "@/types/cms";
 export const CMS_MODULES: CmsModuleDefinition[] = [
   {
     slug: "competitions",
-    href: "/modules/competitions",
+    href: "/events",
     title: "Events & Rounds",
     shortTitle: "Events",
-    stageLabel: "Core Competition Module",
-    status: "Planned",
+    stageLabel: "Stage 2A Active",
+    status: "Active",
     summary:
-      "Configure competition tracks, round structures, eligibility rules, and judging criteria.",
+      "Configure competition events, entry modes, codename settings, round structures, and judging criteria.",
     plannedScope: [
-      "Event definitions and round progression workflows",
-      "Rubric criteria and maximum score weights",
-      "Schedule slots and venue assignments",
+      "Event definitions, status lifecycle, and entry/codename modes",
+      "Ordered rounds with scoring method, attribution mode, and lock state",
+      "Rubric criteria with max points, weights, and score-lock protection",
     ],
   },
   {
     slug: "contingents",
-    href: "/modules/contingents",
-    title: "Contingents & Teams",
+    href: "/contingents",
+    title: "Contingents & Participants",
     shortTitle: "Contingents",
-    stageLabel: "Participant Registry",
-    status: "Planned",
+    stageLabel: "Stage 2A Active",
+    status: "Active",
     summary:
-      "Manage verified institutional contingents, team codes, and check-in attendance.",
+      "Manage institutional contingents, variable team rosters, independent individual participants, and event entries.",
     plannedScope: [
-      "Institutional contingent roster verification",
-      "Team allocation to competition rounds",
-      "On-campus check-in and disqualification state tracking",
+      "Contingent and institution records with optional team size rules",
+      "Individual participants with or without contingent membership",
+      "Strict contingent XOR participant event entries",
     ],
   },
   {

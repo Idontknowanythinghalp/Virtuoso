@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Award,
+  Building2,
   ClipboardCheck,
   FileSearch,
   FolderArchive,
@@ -13,6 +14,7 @@ import {
   Menu,
   Scale,
   ShieldCheck,
+  UserCheck,
   UserCog,
   Users,
   X,
@@ -103,6 +105,55 @@ export function CmsShell({ breadcrumbs, user, children }: CmsShellProps) {
             </Link>
           </div>
 
+          <div className="space-y-1">
+            <p className="px-2.5 text-xs font-medium text-slate-500">
+              Competition Structure
+            </p>
+            <ul className="space-y-1">
+              <li>
+                <Link
+                  href="/events"
+                  className={`flex min-h-10 items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507] ${
+                    pathname === "/events" || pathname.startsWith("/events/")
+                      ? "bg-[#4B0507] text-white"
+                      : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+                >
+                  <Award className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span className="truncate">Events &amp; Rounds</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/contingents"
+                  className={`flex min-h-10 items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507] ${
+                    pathname === "/contingents" ||
+                    pathname.startsWith("/contingents/")
+                      ? "bg-[#4B0507] text-white"
+                      : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+                >
+                  <Building2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span className="truncate">Contingents</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/participants"
+                  className={`flex min-h-10 items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507] ${
+                    pathname === "/participants" ||
+                    pathname.startsWith("/participants/")
+                      ? "bg-[#4B0507] text-white"
+                      : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+                >
+                  <UserCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span className="truncate">Participants</span>
+                </Link>
+              </li>
+            </ul>
+          </div>
+
           {isSuperAdmin ? (
             <div className="space-y-1">
               <p className="px-2.5 text-xs font-medium text-slate-500">
@@ -147,26 +198,28 @@ export function CmsShell({ breadcrumbs, user, children }: CmsShellProps) {
               Planned Modules
             </p>
             <ul className="space-y-1">
-              {CMS_MODULES.map((mod) => {
-                const isActive = pathname === mod.href;
-                return (
-                  <li key={mod.slug}>
-                    <Link
-                      href={mod.href}
-                      className={`flex min-h-10 items-center justify-between gap-2 rounded-md px-2.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507] ${
-                        isActive
-                          ? "bg-[#4B0507] text-white"
-                          : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
-                      }`}
-                    >
-                      <span className="flex min-w-0 items-center gap-2.5">
-                        {MODULE_ICONS[mod.slug]}
-                        <span className="truncate">{mod.title}</span>
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
+              {CMS_MODULES.filter((mod) => mod.status !== "Active").map(
+                (mod) => {
+                  const isActive = pathname === mod.href;
+                  return (
+                    <li key={mod.slug}>
+                      <Link
+                        href={mod.href}
+                        className={`flex min-h-10 items-center justify-between gap-2 rounded-md px-2.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507] ${
+                          isActive
+                            ? "bg-[#4B0507] text-white"
+                            : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                        }`}
+                      >
+                        <span className="flex min-w-0 items-center gap-2.5">
+                          {MODULE_ICONS[mod.slug]}
+                          <span className="truncate">{mod.title}</span>
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                },
+              )}
             </ul>
           </div>
         </nav>

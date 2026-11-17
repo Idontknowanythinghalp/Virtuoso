@@ -6,7 +6,7 @@ export type CmsModuleSlug =
   | "media-vault"
   | "access-audit";
 
-export type ModuleStageStatus = "Scaffolded" | "Planned";
+export type ModuleStageStatus = "Active" | "Scaffolded" | "Planned";
 
 export interface CmsModuleDefinition {
   slug: CmsModuleSlug;

@@ -8,6 +8,8 @@ Apply the SQL migrations to your existing `virtuoso` Supabase project in strict 
    - Creates `public.profiles`, constraints (`role`, `scope_mode`), indexes, `updated_at` trigger, last-active-Super-Admin protection trigger, helper functions (`is_active_organiser`, `is_active_super_admin`), and Row Level Security policies.
 2. `supabase/migrations/202611160002_stage1b_audit_logs.sql`
    - Creates `public.audit_logs`, indexes, immutability trigger, and Super Admin-only `SELECT` Row Level Security policies.
+3. `supabase/migrations/202611160003_stage2a_competition_structure.sql`
+   - Creates `events`, `rounds`, `judging_criteria`, `contingents`, `participants`, and `event_entries`, transactional ordering RPCs (`reorder_event_rounds`, `reorder_round_criteria`), integrity/lock/XOR triggers, and active-organiser RLS policies.
 
 Both migrations are non-destructive (`IF NOT EXISTS` and idempotent checks) and safe to run without resetting the database.
 

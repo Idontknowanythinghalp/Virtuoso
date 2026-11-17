@@ -46,20 +46,27 @@ export async function signInOrganiserAction(
     email,
     password: rawPassword,
   });
-
   if (signInError || !data.user) {
-    await recordAuditLog({
-      actorUserId: null,
-      actorEmail: email,
-      action: "auth.login_failed",
-      entityType: "session",
-      entityId: null,
-      metadata: { reason: "invalid_credentials" },
-    });
-    return { error: "Invalid email or password." };
-  }
+  console.error("[auth] Supabase login failure:", {
+    errorName: signInError?.name ?? null,
+    errorCode: signInError?.code ?? null,
+    errorStatus: signInError?.status ?? null,
+    errorMessage: signInError?.message ?? null,
+    userReturned: Boolean(data.user),
+  });
 
-  const { data: profile, error: profileError } = await supabase
+  await recordAuditLog({
+    actorUserId: null,
+    actorEmail: email,
+    action: "auth.login_failed",
+    entityType: "session",
+    entityId: null,
+    metadata: { reason: "authentication_failed" },
+  });
+
+  return { error: "Authentication failed. Check the server logs." };
+}
+   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select(
       "id, full_name, email, role, scope_mode, is_active, created_at, updated_at",

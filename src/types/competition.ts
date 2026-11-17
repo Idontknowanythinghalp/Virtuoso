@@ -1,0 +1,158 @@
+export type EventEntryMode = "contingent" | "individual" | "hybrid";
+
+export type CodenameMode = "event_wide" | "per_round";
+
+export type EventStatus = "draft" | "active" | "inactive" | "archived";
+
+export type RoundScoringMethod =
+  | "criteria_sum"
+  | "criteria_weighted"
+  | "direct_points";
+
+export type RoundAttributionMode =
+  | "individual_judge"
+  | "panel_consolidated"
+  | "round_direct";
+
+export type RoundStatus =
+  | "draft"
+  | "ready"
+  | "deployed"
+  | "completed"
+  | "archived";
+
+export type EventEntryType = "contingent" | "individual";
+
+export type EventEntryStatus =
+  | "registered"
+  | "checked_in"
+  | "withdrawn"
+  | "disqualified";
+
+export interface EventRecord {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  entry_mode: EventEntryMode;
+  codename_mode: CodenameMode;
+  status: EventStatus;
+  min_team_size: number | null;
+  max_team_size: number | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RoundRecord {
+  id: string;
+  event_id: string;
+  round_number: number;
+  name: string;
+  description: string | null;
+  scoring_method: RoundScoringMethod;
+  attribution_mode: RoundAttributionMode;
+  status: RoundStatus;
+  is_locked: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface JudgingCriterionRecord {
+  id: string;
+  round_id: string;
+  display_order: number;
+  name: string;
+  max_points: number;
+  weight: number;
+  rubric_guidance: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContingentRecord {
+  id: string;
+  contingent_code: string;
+  name: string;
+  institution_name: string;
+  institution_city: string | null;
+  external_registration_ref: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  is_active: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ParticipantRecord {
+  id: string;
+  contingent_id: string | null;
+  participant_code: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  institution_name: string;
+  external_registration_ref: string | null;
+  is_contingent_lead: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EventEntryRecord {
+  id: string;
+  event_id: string;
+  entry_type: EventEntryType;
+  contingent_id: string | null;
+  participant_id: string | null;
+  status: EventEntryStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const ENTRY_MODE_LABELS: Record<EventEntryMode, string> = {
+  contingent: "Contingent (Team)",
+  individual: "Individual Participant",
+  hybrid: "Hybrid (Contingent or Individual)",
+};
+
+export const CODENAME_MODE_LABELS: Record<CodenameMode, string> = {
+  event_wide: "Event-Wide Codename",
+  per_round: "Per-Round Codename",
+};
+
+export const EVENT_STATUS_LABELS: Record<EventStatus, string> = {
+  draft: "Draft",
+  active: "Active",
+  inactive: "Inactive",
+  archived: "Archived",
+};
+
+export const SCORING_METHOD_LABELS: Record<RoundScoringMethod, string> = {
+  criteria_sum: "Criteria Sum",
+  criteria_weighted: "Criteria Weighted",
+  direct_points: "Direct Points",
+};
+
+export const ATTRIBUTION_MODE_LABELS: Record<RoundAttributionMode, string> = {
+  individual_judge: "Individual Judge",
+  panel_consolidated: "Panel Consolidated",
+  round_direct: "Round Direct",
+};
+
+export const ROUND_STATUS_LABELS: Record<RoundStatus, string> = {
+  draft: "Draft",
+  ready: "Ready",
+  deployed: "Deployed",
+  completed: "Completed",
+  archived: "Archived",
+};
+
+export const ENTRY_STATUS_LABELS: Record<EventEntryStatus, string> = {
+  registered: "Registered",
+  checked_in: "Checked In",
+  withdrawn: "Withdrawn",
+  disqualified: "Disqualified",
+};

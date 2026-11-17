@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Layers } from "lucide-react";
 import { CmsShell } from "@/components/layout/CmsShell";
 import { AuthNoticeBanner } from "@/components/cms/AuthNoticeBanner";
@@ -23,6 +23,13 @@ export default async function ModulePlaceholderPage({
   });
 
   const { slug } = await params;
+  if (slug === "competitions") {
+    redirect("/events");
+  }
+  if (slug === "contingents") {
+    redirect("/contingents");
+  }
+
   const cmsModule = getCmsModuleBySlug(slug);
 
   if (!cmsModule) {
@@ -66,9 +73,9 @@ export default async function ModulePlaceholderPage({
               Module Not Yet Implemented
             </h2>
             <p className="text-sm leading-relaxed text-slate-600">
-              This route is protected by organiser authentication, but no
-              competition data, scoring tables, or domain workflows are active
-              yet during Stage 1B. Upcoming stages will cover:
+              This route is protected by organiser authentication and reserved
+              for a later Virtuoso CMS stage beyond Stage 2A. Upcoming stages
+              will cover:
             </p>
           </div>
 
