@@ -10,8 +10,10 @@ Apply the SQL migrations to your existing `virtuoso` Supabase project in strict 
    - Creates `public.audit_logs`, indexes, immutability trigger, and Super Admin-only `SELECT` Row Level Security policies.
 3. `supabase/migrations/202611160003_stage2a_competition_structure.sql`
    - Creates `events`, `rounds`, `judging_criteria`, `contingents`, `participants`, and `event_entries`, transactional ordering RPCs (`reorder_event_rounds`, `reorder_round_criteria`), integrity/lock/XOR triggers, and active-organiser RLS policies.
+4. `supabase/migrations/202611170004_stage2b2_registration_imports.sql`
+   - Creates `public.registration_imports` (immutable import history and per-event idempotency safeguard) and the atomic `public.execute_registration_import(...)` PostgreSQL RPC with advisory locking and field allowlists.
 
-Both migrations are non-destructive (`IF NOT EXISTS` and idempotent checks) and safe to run without resetting the database.
+All migrations are non-destructive (`IF NOT EXISTS` and idempotent checks) and safe to run without resetting the database.
 
 You can apply them either via the **Supabase Dashboard -> SQL Editor** (paste and run `0001` first, then `0002`) or via Supabase CLI:
 
