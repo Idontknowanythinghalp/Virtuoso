@@ -246,7 +246,7 @@ function parseSheetXml(xml: string, sharedStrings: string[]): string[][] {
         value = isMatch ? decodeXmlEntities(isMatch[1]) : "";
       } else if (cellType === "b") {
         const vMatch = /<v>([\s\S]*?)<\/v>/i.exec(cellBody);
-        value = vMatch?.trim() === "1" ? "TRUE" : "FALSE";
+        value = vMatch ? (vMatch[1].trim() === "1" ? "TRUE" : "FALSE") : "";
       } else {
         const vMatch = /<v>([\s\S]*?)<\/v>/i.exec(cellBody);
         value = vMatch ? decodeXmlEntities(vMatch[1].trim()) : "";

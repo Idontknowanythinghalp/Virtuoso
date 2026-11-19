@@ -228,7 +228,7 @@ export async function commitRegistrationImportAction(input: {
     let updatedParticipants = 0;
     let createdEntries = 0;
     let skipped = 0;
-    let rejected = preview.invalidRowsCount;
+    const rejected = preview.invalidRowsCount;
 
     // Load existing events map for entries
     const { data: events } = await supabase.from("events").select("id, code");
