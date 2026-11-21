@@ -50,6 +50,9 @@ function mapRegistryDbError(
     }
     return "A duplicate record already exists.";
   }
+  if (err.code === "23503" && err.message?.includes("entry_codenames")) {
+    return "This event entry already has codenames assigned and cannot be removed.";
+  }
   if (err.code === "P0001" && err.message) {
     return err.message;
   }

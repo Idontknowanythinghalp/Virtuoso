@@ -12,6 +12,7 @@ import { siteConfig } from "@/lib/site-config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type {
   ContingentRecord,
+  EntryCodenameRecord,
   EventEntryRecord,
   EventRecord,
   ParticipantRecord,
@@ -39,46 +40,59 @@ export default async function EventDetailPage({
 
   const supabase = await createSupabaseServerClient();
 
-  const [eventRes, roundsRes, entriesRes, contingentsRes, participantsRes] =
-    await Promise.all([
-      supabase
-        .from("events")
-        .select("*")
-        .eq("id", idCheck.value)
-        .maybeSingle<EventRecord>(),
-      supabase
-        .from("rounds")
-        .select("*")
-        .eq("event_id", idCheck.value)
-        .order("round_number", { ascending: true })
-        .returns<RoundRecord[]>(),
-      supabase
-        .from("event_entries")
-        .select("*")
-        .eq("event_id", idCheck.value)
-        .order("created_at", { ascending: false })
-        .returns<EventEntryRecord[]>(),
-      supabase
-        .from("contingents")
-        .select("id, contingent_code, name, institution_name, is_active")
-        .order("contingent_code", { ascending: true })
-        .returns<
-          Pick<
-            ContingentRecord,
-            "id" | "contingent_code" | "name" | "institution_name" | "is_active"
-          >[]
-        >(),
-      supabase
-        .from("participants")
-        .select("id, participant_code, full_name, institution_name, is_active")
-        .order("participant_code", { ascending: true })
-        .returns<
-          Pick<
-            ParticipantRecord,
-            "id" | "participant_code" | "full_name" | "institution_name" | "is_active"
-          >[]
-        >(),
-    ]);
+  const [
+    eventRes,
+    roundsRes,
+    entriesRes,
+    contingentsRes,
+    participantsRes,
+    codenamesRes,
+  ] = await Promise.all([
+    supabase
+      .from("events")
+      .select("*")
+      .eq("id", idCheck.value)
+      .maybeSingle<EventRecord>(),
+    supabase
+      .from("rounds")
+      .select("*")
+      .eq("event_id", idCheck.value)
+      .order("round_number", { ascending: true })
+      .returns<RoundRecord[]>(),
+    supabase
+      .from("event_entries")
+      .select("*")
+      .eq("event_id", idCheck.value)
+      .order("created_at", { ascending: false })
+      .returns<EventEntryRecord[]>(),
+    supabase
+      .from("contingents")
+      .select("id, contingent_code, name, institution_name, is_active")
+      .order("contingent_code", { ascending: true })
+      .returns<
+        Pick<
+          ContingentRecord,
+          "id" | "contingent_code" | "name" | "institution_name" | "is_active"
+        >[]
+      >(),
+    supabase
+      .from("participants")
+      .select("id, participant_code, full_name, institution_name, is_active")
+      .order("participant_code", { ascending: true })
+      .returns<
+        Pick<
+          ParticipantRecord,
+          "id" | "participant_code" | "full_name" | "institution_name" | "is_active"
+        >[]
+      >(),
+    supabase
+      .from("entry_codenames")
+      .select("event_entry_id, round_id, codename")
+      .eq("event_id", idCheck.value)
+      .returns<
+        Pick<EntryCodenameRecord, "event_entry_id" | "round_id" | "codename">[]
+      >(),
+  ]);
 
   if (eventRes.error || !eventRes.data) {
     notFound();
@@ -102,6 +116,19 @@ export default async function EventDetailPage({
       ? participantById.get(entry.participant_id) ?? null
       : null,
   }));
+
+  const codenames = codenamesRes.error ? [] : (codenamesRes.data ?? []);
+  const eventWideCodenameByEntryId: Record<string, string> = {};
+  const roundCodenameCountMap: Record<string, number> = {};
+
+  for (const row of codenames) {
+    if (row.round_id === null) {
+      eventWideCodenameByEntryId[row.event_entry_id] = row.codename;
+    } else {
+      roundCodenameCountMap[row.round_id] =
+        (roundCodenameCountMap[row.round_id] ?? 0) + 1;
+    }
+  }
 
   return (
     <CmsShell
@@ -131,6 +158,9 @@ export default async function EventDetailPage({
         entries={entries}
         availableContingents={allContingents}
         availableParticipants={allParticipants}
+        codenameAssignmentCount={codenames.length}
+        eventWideCodenameByEntryId={eventWideCodenameByEntryId}
+        roundCodenameCountMap={roundCodenameCountMap}
       />
     </CmsShell>
   );

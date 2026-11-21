@@ -156,3 +156,25 @@ export const ENTRY_STATUS_LABELS: Record<EventEntryStatus, string> = {
   withdrawn: "Withdrawn",
   disqualified: "Disqualified",
 };
+
+export type CodenameAssignmentSource = "auto_generated" | "manual";
+
+export interface EntryCodenameRecord {
+  id: string;
+  event_id: string;
+  event_entry_id: string;
+  round_id: string | null;
+  codename: string;
+  assignment_source: CodenameAssignmentSource;
+  assigned_by: string | null;
+  updated_by: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const CODENAME_SOURCE_LABELS: Record<CodenameAssignmentSource, string> = {
+  auto_generated: "Auto-Generated",
+  manual: "Manual",
+};
+

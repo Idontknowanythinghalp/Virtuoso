@@ -2,600 +2,501 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { isAdminSupabaseConfigured } from "@/lib/supabase/server-env";
-import { recordAuditLog } from "@/lib/audit/logger";
 import {
   OrganiserAuthError,
   requireActiveUserForAction,
 } from "@/lib/auth/guards";
 import { ALL_ORGANISER_ROLES } from "@/lib/auth/policy";
 import { validateUuid } from "@/lib/competition/validation";
+import {
+  planMissingCodenameAssignments,
+  validateCodenameScope,
+  validateManualCodename,
+} from "@/lib/codenames/validation";
+import type { CompetitionActionResult } from "@/app/actions/competition";
 import type {
-  CodenameRecord,
-  CodenameView,
-  GenerateCodenamesResult,
-} from "@/types/data-operations";
-import type {
-  ContingentRecord,
+  EntryCodenameRecord,
   EventEntryRecord,
   EventRecord,
-  ParticipantRecord,
   RoundRecord,
 } from "@/types/competition";
 
-export const CODENAME_THEME_WORDS = [
-  "SOLSTICE",
-  "AURORA",
-  "HELIOS",
-  "APOLLO",
-  "VALKYRIE",
-  "ZEPHYR",
-  "ORION",
-  "PHOENIX",
-  "TITAN",
-  "BOREAS",
-  "CHRONOS",
-  "HYPERION",
-  "ZENITH",
-  "ECLIPSE",
-  "SOLAR",
-  "STELLAR",
-  "NOVA",
-  "VORTEX",
-  "COSMOS",
-  "LUNAR",
-  "BLAZE",
-  "COMET",
-  "DRACO",
-  "EMBER",
-  "IGNIS",
-  "LYRA",
-  "METEOR",
-  "NEBULA",
-  "OMEGA",
-  "PULSAR",
-  "QUASAR",
-  "RADIANT",
-  "SIRIUS",
-  "UMBRA",
-  "VEGA",
-  "ZODIAC",
-] as const;
-
-export function generateHumanReadableCodename(
-  existingCodenamesLower: Set<string>,
-  index: number,
-  customPrefix?: string,
+function mapCodenameDbError(
+  err: { code?: string; message?: string },
+  fallback: string,
 ): string {
-  const cleanPrefix = customPrefix?.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "");
-
-  if (cleanPrefix && cleanPrefix.length >= 2) {
-    const candidate = `${cleanPrefix}-${String(index + 1).padStart(2, "0")}`;
-    if (!existingCodenamesLower.has(candidate.toLowerCase())) {
-      return candidate;
+  if (err.code === "23505") {
+    if (
+      err.message?.includes("entry_codenames_event_wide_code") ||
+      err.message?.includes("entry_codenames_per_round_code")
+    ) {
+      return "That codename is already assigned to another entry in this scope.";
     }
+    if (
+      err.message?.includes("entry_codenames_event_wide_entry") ||
+      err.message?.includes("entry_codenames_per_round_entry")
+    ) {
+      return "This entry already has a codename assigned in this scope.";
+    }
+    return "A conflicting codename assignment already exists in this scope.";
   }
 
-  // Iterate through themes and sequence numbers until an unused one is found
-  for (let cycle = 0; cycle < 10; cycle++) {
-    for (let w = 0; w < CODENAME_THEME_WORDS.length; w++) {
-      const word = CODENAME_THEME_WORDS[(w + index) % CODENAME_THEME_WORDS.length];
-      const num = index + 1 + cycle * CODENAME_THEME_WORDS.length;
-      const candidate = `${word}-${String(num).padStart(2, "0")}`;
-      if (!existingCodenamesLower.has(candidate.toLowerCase())) {
-        return candidate;
-      }
-    }
+  if (err.code === "23514" && err.message?.includes("entry_codenames_code_format")) {
+    return "Codename format is invalid. Use 4–40 letters, numbers, and single hyphens.";
   }
 
-  // Fallback unique timestamp-based codename
-  const fallback = `CODENAME-${Date.now().toString(36).toUpperCase()}`;
+  if (err.code === "P0001" && err.message) {
+    return err.message;
+  }
+
   return fallback;
 }
 
-export async function generateCodenamesAction(input: {
-  eventId: string;
-  roundId?: string | null;
-  customPrefix?: string;
-}): Promise<GenerateCodenamesResult> {
-  try {
-    const actor = await requireActiveUserForAction(ALL_ORGANISER_ROLES, {
-      actionName: "codename.generate",
-    });
-
-    if (!isAdminSupabaseConfigured()) {
-      return {
-        ok: false,
-        message:
-          "Codename generation requires SUPABASE_SERVICE_ROLE_KEY to be configured on the server for audit logging.",
-        generatedCount: 0,
-        skippedExistingCount: 0,
-        codenames: [],
-      };
-    }
-
-    const eventCheck = validateUuid(input.eventId, "Event");
-    if (!eventCheck.ok) {
-      return {
-        ok: false,
-        message: eventCheck.error,
-        generatedCount: 0,
-        skippedExistingCount: 0,
-        codenames: [],
-      };
-    }
-
-    const supabase = await createSupabaseServerClient();
-
-    // Verify Event & Codename Mode
-    const { data: event, error: eventError } = await supabase
-      .from("events")
-      .select("*")
-      .eq("id", eventCheck.value)
-      .maybeSingle<EventRecord>();
-
-    if (eventError || !event) {
-      return {
-        ok: false,
-        message: "Event not found.",
-        generatedCount: 0,
-        skippedExistingCount: 0,
-        codenames: [],
-      };
-    }
-
-    const isPerRound = event.codename_mode === "per_round";
-    let targetRoundId: string | null = null;
-
-    if (isPerRound) {
-      if (!input.roundId) {
-        return {
-          ok: false,
-          message:
-            "This event is configured with per-round codename mode. Please select a specific round to generate codenames.",
-          generatedCount: 0,
-          skippedExistingCount: 0,
-          codenames: [],
-        };
-      }
-      const roundCheck = validateUuid(input.roundId, "Round");
-      if (!roundCheck.ok) {
-        return {
-          ok: false,
-          message: roundCheck.error,
-          generatedCount: 0,
-          skippedExistingCount: 0,
-          codenames: [],
-        };
-      }
-      targetRoundId = roundCheck.value;
-    } else {
-      targetRoundId = null; // event-wide
-    }
-
-    // Fetch active event entries
-    const { data: entries, error: entriesError } = await supabase
-      .from("event_entries")
-      .select("*")
-      .eq("event_id", event.id)
-      .not("status", "in", '("withdrawn","disqualified")')
-      .order("created_at", { ascending: true })
-      .returns<EventEntryRecord[]>();
-
-    if (entriesError || !entries || entries.length === 0) {
-      return {
-        ok: false,
-        message: "No active event entries found to assign codenames to.",
-        generatedCount: 0,
-        skippedExistingCount: 0,
-        codenames: [],
-      };
-    }
-
-    // Fetch existing codenames in this scope
-    let existingQuery = supabase
-      .from("codenames")
-      .select("*")
-      .eq("event_id", event.id);
-
-    if (isPerRound && targetRoundId) {
-      existingQuery = existingQuery.eq("round_id", targetRoundId);
-    } else {
-      existingQuery = existingQuery.is("round_id", null);
-    }
-
-    const { data: existingCodenames } = await existingQuery.returns<
-      CodenameRecord[]
-    >();
-
-    const existingByEntryId = new Map<string, string>();
-    const existingCodenamesLower = new Set<string>();
-
-    for (const cn of existingCodenames ?? []) {
-      existingByEntryId.set(cn.event_entry_id, cn.codename);
-      existingCodenamesLower.add(cn.codename.toLowerCase().trim());
-    }
-
-    let generatedCount = 0;
-    let skippedExistingCount = 0;
-    const generatedList: { entryId: string; codename: string }[] = [];
-
-    // Assign codenames for entries that do not have one yet (CRITICAL: preserve existing codenames!)
-    for (let i = 0; i < entries.length; i++) {
-      const entry = entries[i];
-      if (existingByEntryId.has(entry.id)) {
-        skippedExistingCount++;
-        generatedList.push({
-          entryId: entry.id,
-          codename: existingByEntryId.get(entry.id)!,
-        });
-        continue;
-      }
-
-      // Generate a new human-readable codename
-      const newCodename = generateHumanReadableCodename(
-        existingCodenamesLower,
-        i,
-        input.customPrefix,
-      );
-      existingCodenamesLower.add(newCodename.toLowerCase());
-
-      // Safe concurrency insert with retry on conflict
-      let inserted = false;
-      let attempt = 0;
-      let candidate = newCodename;
-
-      while (!inserted && attempt < 5) {
-        attempt++;
-        const { error: insertError } = await supabase.from("codenames").insert({
-          event_id: event.id,
-          round_id: targetRoundId,
-          event_entry_id: entry.id,
-          codename: candidate,
-          assigned_by: actor.userId,
-        });
-
-        if (!insertError) {
-          inserted = true;
-          generatedCount++;
-          generatedList.push({ entryId: entry.id, codename: candidate });
-        } else if (insertError.code === "23505") {
-          // Unique violation (e.g. concurrent generation) -> generate another candidate and retry
-          candidate = `${candidate}-${attempt}`;
-          existingCodenamesLower.add(candidate.toLowerCase());
-        } else {
-          break;
-        }
-      }
-    }
-
-    await recordAuditLog({
-      actorUserId: actor.userId,
-      actorEmail: actor.profile.email,
-      action: "codename.generated",
-      entityType: "event",
-      entityId: event.id,
-      metadata: {
-        eventName: event.name,
-        codenameMode: event.codename_mode,
-        roundId: targetRoundId,
-        generatedCount,
-        skippedExistingCount,
-      },
-    });
-
-    revalidatePath(`/events/${event.id}`);
-    if (targetRoundId) {
-      revalidatePath(`/events/${event.id}/rounds/${targetRoundId}`);
-    }
-
-    return {
-      ok: true,
-      message: `Codename generation complete. Generated ${generatedCount} new codename(s); preserved ${skippedExistingCount} existing assignment(s).`,
-      generatedCount,
-      skippedExistingCount,
-      codenames: generatedList,
-    };
-  } catch (err) {
-    if (err instanceof OrganiserAuthError) {
-      return {
-        ok: false,
-        message: err.message,
-        generatedCount: 0,
-        skippedExistingCount: 0,
-        codenames: [],
-      };
-    }
-    return {
-      ok: false,
-      message:
-        err instanceof Error
-          ? err.message
-          : "Unexpected error generating codenames.",
-      generatedCount: 0,
-      skippedExistingCount: 0,
-      codenames: [],
-    };
-  }
+interface AssignBatchRpcResult {
+  assigned_count: number;
+  skipped_existing_count: number;
+  assigned_items: Array<{
+    id: string;
+    event_entry_id: string;
+    codename: string;
+  }>;
 }
 
-export async function assignCodenameAction(input: {
+interface UpsertCodenameRpcResult {
+  operation: "assigned" | "corrected";
+  id: string;
+  before_codename: string | null;
+  after_codename: string;
+  before_source: string | null;
+  after_source: string;
+  before_notes: string | null;
+  after_notes: string | null;
+}
+
+export async function assignMissingCodenamesAction(input: {
   eventId: string;
   roundId?: string | null;
-  eventEntryId: string;
-  codename: string;
-}): Promise<{ ok: boolean; message: string }> {
+}): Promise<CompetitionActionResult> {
   try {
-    const actor = await requireActiveUserForAction(ALL_ORGANISER_ROLES, {
-      actionName: "codename.assign",
+    await requireActiveUserForAction(ALL_ORGANISER_ROLES, {
+      actionName: "codename.batch_assigned",
     });
-
-    if (!isAdminSupabaseConfigured()) {
-      return {
-        ok: false,
-        message:
-          "Codename assignment requires SUPABASE_SERVICE_ROLE_KEY to be configured on the server.",
-      };
-    }
 
     const eventCheck = validateUuid(input.eventId, "Event");
     if (!eventCheck.ok) return { ok: false, message: eventCheck.error };
 
-    const entryCheck = validateUuid(input.eventEntryId, "Event Entry");
-    if (!entryCheck.ok) return { ok: false, message: entryCheck.error };
-
-    const trimmedCodename = input.codename.trim().toUpperCase();
-    if (trimmedCodename.length < 2 || trimmedCodename.length > 60) {
-      return {
-        ok: false,
-        message: "Codename must be between 2 and 60 characters.",
-      };
+    const requestedRoundId = input.roundId?.trim() || null;
+    if (requestedRoundId) {
+      const roundCheck = validateUuid(requestedRoundId, "Round");
+      if (!roundCheck.ok) return { ok: false, message: roundCheck.error };
     }
 
     const supabase = await createSupabaseServerClient();
 
-    // Verify Event & Scope
-    const { data: event, error: eventError } = await supabase
+    const { data: eventRow, error: eventErr } = await supabase
       .from("events")
-      .select("id, codename_mode")
+      .select("id, code, name, codename_mode, status")
       .eq("id", eventCheck.value)
-      .maybeSingle<EventRecord>();
+      .maybeSingle<
+        Pick<EventRecord, "id" | "code" | "name" | "codename_mode" | "status">
+      >();
 
-    if (eventError || !event) {
-      return { ok: false, message: "Event not found." };
+    if (eventErr || !eventRow) {
+      return { ok: false, message: "Target event was not found." };
     }
 
-    const isPerRound = event.codename_mode === "per_round";
-    let targetRoundId: string | null = null;
-    if (isPerRound) {
-      if (!input.roundId) {
-        return {
-          ok: false,
-          message: "Per-round codename mode requires a valid roundId.",
-        };
-      }
-      const roundCheck = validateUuid(input.roundId, "Round");
-      if (!roundCheck.ok) return { ok: false, message: roundCheck.error };
-      targetRoundId = roundCheck.value;
-    }
-
-    // Check if codename is already taken by another entry in this scope
-    let collisionQuery = supabase
-      .from("codenames")
-      .select("id, event_entry_id")
-      .eq("event_id", event.id)
-      .ilike("codename", trimmedCodename);
-
-    if (isPerRound && targetRoundId) {
-      collisionQuery = collisionQuery.eq("round_id", targetRoundId);
-    } else {
-      collisionQuery = collisionQuery.is("round_id", null);
-    }
-
-    const { data: existingCollisions } = await collisionQuery;
-    const collision = existingCollisions?.find(
-      (c) => c.event_entry_id !== entryCheck.value,
-    );
-    if (collision) {
+    if (eventRow.codename_mode === "event_wide" && requestedRoundId !== null) {
       return {
         ok: false,
-        message: `The codename "${trimmedCodename}" is already assigned to another entry in this ${isPerRound ? "round" : "event"}.`,
+        message:
+          "This event uses Event-Wide codenames; round-specific assignments are not allowed.",
       };
     }
 
-    // Check if entry already has a codename row in this scope
-    let existingEntryQuery = supabase
-      .from("codenames")
-      .select("*")
-      .eq("event_id", event.id)
-      .eq("event_entry_id", entryCheck.value);
+    let roundRow: Pick<
+      RoundRecord,
+      "id" | "event_id" | "round_number" | "name" | "status"
+    > | null = null;
 
-    if (isPerRound && targetRoundId) {
-      existingEntryQuery = existingEntryQuery.eq("round_id", targetRoundId);
-    } else {
-      existingEntryQuery = existingEntryQuery.is("round_id", null);
-    }
-
-    const { data: existingRow } = await existingEntryQuery.maybeSingle<CodenameRecord>();
-
-    if (existingRow) {
-      // Update existing
-      const { error: updateError } = await supabase
-        .from("codenames")
-        .update({
-          codename: trimmedCodename,
-          assigned_by: actor.userId,
-        })
-        .eq("id", existingRow.id);
-
-      if (updateError) {
+    if (eventRow.codename_mode === "per_round") {
+      if (!requestedRoundId) {
         return {
           ok: false,
-          message: "Unable to update codename. Please check for duplicates.",
+          message:
+            "This event uses Per-Round codenames; select a round before assigning codenames.",
         };
       }
 
-      await recordAuditLog({
-        actorUserId: actor.userId,
-        actorEmail: actor.profile.email,
-        action: "codename.reassigned",
-        entityType: "codename",
-        entityId: existingRow.id,
-        beforeData: { codename: existingRow.codename },
-        afterData: { codename: trimmedCodename },
-      });
-    } else {
-      // Insert new
-      const { data: inserted, error: insertError } = await supabase
-        .from("codenames")
-        .insert({
-          event_id: event.id,
-          round_id: targetRoundId,
-          event_entry_id: entryCheck.value,
-          codename: trimmedCodename,
-          assigned_by: actor.userId,
-        })
-        .select("id")
-        .single<{ id: string }>();
+      const { data: loadedRound, error: roundErr } = await supabase
+        .from("rounds")
+        .select("id, event_id, round_number, name, status")
+        .eq("id", requestedRoundId)
+        .eq("event_id", eventRow.id)
+        .maybeSingle<
+          Pick<RoundRecord, "id" | "event_id" | "round_number" | "name" | "status">
+        >();
 
-      if (insertError) {
+      if (roundErr || !loadedRound) {
         return {
           ok: false,
-          message: "Unable to assign codename. Please check for duplicates.",
+          message: "Selected round was not found for this event.",
+        };
+      }
+      roundRow = loadedRound;
+    }
+
+    const scopeCheck = validateCodenameScope({
+      eventId: eventRow.id,
+      codenameMode: eventRow.codename_mode,
+      eventStatus: eventRow.status,
+      roundId: requestedRoundId,
+      round: roundRow,
+    });
+    if (!scopeCheck.ok) {
+      return { ok: false, message: scopeCheck.error };
+    }
+
+    const { data: entries, error: entriesErr } = await supabase
+      .from("event_entries")
+      .select("id, event_id, status")
+      .eq("event_id", eventRow.id)
+      .returns<Pick<EventEntryRecord, "id" | "event_id" | "status">[]>();
+
+    if (entriesErr) {
+      return {
+        ok: false,
+        message:
+          "Unable to load event entries. Verify Stage 2A and Stage 2B.3 migrations are applied.",
+      };
+    }
+
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+      let existingQuery = supabase
+        .from("entry_codenames")
+        .select("event_id, event_entry_id, round_id, codename")
+        .eq("event_id", eventRow.id);
+
+      if (scopeCheck.value.roundId === null) {
+        existingQuery = existingQuery.is("round_id", null);
+      } else {
+        existingQuery = existingQuery.eq("round_id", scopeCheck.value.roundId);
+      }
+
+      const { data: existingRows, error: existingErr } = await existingQuery.returns<
+        Pick<
+          EntryCodenameRecord,
+          "event_id" | "event_entry_id" | "round_id" | "codename"
+        >[]
+      >();
+
+      if (existingErr) {
+        return {
+          ok: false,
+          message:
+            "Unable to load existing codename assignments. Verify Stage 2B.3 database migration 0005 is applied.",
         };
       }
 
-      await recordAuditLog({
-        actorUserId: actor.userId,
-        actorEmail: actor.profile.email,
-        action: "codename.assigned",
-        entityType: "codename",
-        entityId: inserted.id,
-        afterData: { codename: trimmedCodename },
+      const plan = planMissingCodenameAssignments({
+        event: eventRow,
+        round: roundRow,
+        entries: entries ?? [],
+        existingAssignments: existingRows ?? [],
       });
-    }
 
-    revalidatePath(`/events/${event.id}`);
-    if (targetRoundId) {
-      revalidatePath(`/events/${event.id}/rounds/${targetRoundId}`);
+      if (!plan.ok) {
+        return { ok: false, message: plan.error };
+      }
+
+      if (plan.assignmentsToInsert.length === 0) {
+        if (plan.skippedAlreadyAssignedCount > 0) {
+          return {
+            ok: true,
+            message:
+              "All eligible entries in this scope already have codenames assigned. No existing codenames were modified.",
+          };
+        }
+        return {
+          ok: false,
+          message:
+            "No eligible unassigned entries (registered or checked in) were found for codename assignment.",
+        };
+      }
+
+      const { data: rpcRaw, error: rpcErr } = await supabase.rpc(
+        "assign_event_codenames",
+        {
+          p_event_id: eventRow.id,
+          p_round_id: scopeCheck.value.roundId,
+          p_assignments: plan.assignmentsToInsert,
+        },
+      );
+
+      if (rpcErr) {
+        if (rpcErr.code === "23505" && attempt < maxRetries) {
+          continue;
+        }
+        return {
+          ok: false,
+          message: mapCodenameDbError(
+            rpcErr,
+            "Unable to assign codenames. Please retry.",
+          ),
+        };
+      }
+
+      const rpcResult = rpcRaw as AssignBatchRpcResult | null;
+      const assignedCount = rpcResult?.assigned_count ?? 0;
+      const skippedExisting = rpcResult?.skipped_existing_count ?? 0;
+
+      revalidatePath(`/events/${eventRow.id}`);
+      revalidatePath(`/events/${eventRow.id}/codenames`);
+
+      const scopeLabel = roundRow
+        ? `Round ${roundRow.round_number} (${roundRow.name})`
+        : `${eventRow.code} (Event-Wide)`;
+
+      return {
+        ok: true,
+        message:
+          assignedCount > 0
+            ? `Assigned ${assignedCount} new ${assignedCount === 1 ? "codename" : "codenames"} for ${scopeLabel}.${skippedExisting > 0 ? ` Preserved ${skippedExisting} existing assignment(s).` : ""}`
+            : "All eligible entries in this scope already had codenames assigned.",
+      };
     }
 
     return {
-      ok: true,
-      message: `Codename "${trimmedCodename}" successfully assigned.`,
+      ok: false,
+      message:
+        "Concurrent codename assignment caused repeated collisions. Please retry.",
     };
   } catch (err) {
     if (err instanceof OrganiserAuthError) {
       return { ok: false, message: err.message };
     }
+    console.error(
+      "[codenames] batch assign error:",
+      err instanceof Error ? err.message : "unknown",
+    );
     return {
       ok: false,
-      message:
-        err instanceof Error ? err.message : "Failed to assign codename.",
+      message: "Unexpected error while assigning codenames.",
     };
   }
 }
 
-export async function getCodenamesForEventAction(
-  eventId: string,
-  roundId?: string | null,
-): Promise<CodenameView[]> {
+export async function assignManualCodenameAction(
+  _prevState: CompetitionActionResult | null,
+  formData: FormData,
+): Promise<CompetitionActionResult> {
+  return handleManualCodenameMutation(formData, false);
+}
+
+export async function correctEntryCodenameAction(
+  _prevState: CompetitionActionResult | null,
+  formData: FormData,
+): Promise<CompetitionActionResult> {
+  return handleManualCodenameMutation(formData, true);
+}
+
+async function handleManualCodenameMutation(
+  formData: FormData,
+  isCorrection: boolean,
+): Promise<CompetitionActionResult> {
+  const actionName = isCorrection
+    ? "codename.corrected"
+    : "codename.manual_assigned";
+
   try {
     await requireActiveUserForAction(ALL_ORGANISER_ROLES, {
-      actionName: "codename.list",
+      actionName,
     });
 
-    const eventCheck = validateUuid(eventId, "Event");
-    if (!eventCheck.ok) return [];
+    if (isCorrection) {
+      const confirmed =
+        formData.get("confirmOverwrite") === "true" ||
+        formData.get("confirmOverwrite") === "on";
+      if (!confirmed) {
+        return {
+          ok: false,
+          message:
+            "Explicit confirmation is required before overwriting an existing codename.",
+        };
+      }
+    }
+
+    const eventCheck = validateUuid(
+      String(formData.get("eventId") ?? ""),
+      "Event",
+    );
+    if (!eventCheck.ok) return { ok: false, message: eventCheck.error };
+
+    const entryCheck = validateUuid(
+      String(formData.get("eventEntryId") ?? ""),
+      "Event Entry",
+    );
+    if (!entryCheck.ok) return { ok: false, message: entryCheck.error };
+
+    const requestedRoundId = String(formData.get("roundId") ?? "").trim() || null;
+    if (requestedRoundId) {
+      const roundCheck = validateUuid(requestedRoundId, "Round");
+      if (!roundCheck.ok) return { ok: false, message: roundCheck.error };
+    }
+
+    const codenameCheck = validateManualCodename(
+      String(formData.get("codename") ?? ""),
+    );
+    if (!codenameCheck.ok) return { ok: false, message: codenameCheck.error };
+
+    const notesRaw = String(formData.get("notes") ?? "").trim();
+    const notes = notesRaw ? notesRaw.slice(0, 500) : null;
 
     const supabase = await createSupabaseServerClient();
 
-    let query = supabase
-      .from("codenames")
-      .select(
-        `
-        id,
-        event_id,
-        round_id,
-        event_entry_id,
-        codename,
-        assigned_by,
-        created_at,
-        updated_at
-      `,
-      )
-      .eq("event_id", eventCheck.value)
-      .order("created_at", { ascending: true });
+    const { data: eventRow, error: eventErr } = await supabase
+      .from("events")
+      .select("id, code, codename_mode, status")
+      .eq("id", eventCheck.value)
+      .maybeSingle<
+        Pick<EventRecord, "id" | "code" | "codename_mode" | "status">
+      >();
 
-    if (roundId) {
-      query = query.eq("round_id", roundId);
+    if (eventErr || !eventRow) {
+      return { ok: false, message: "Target event was not found." };
     }
 
-    const { data: codenames, error } = await query.returns<CodenameRecord[]>();
-    if (error || !codenames) return [];
+    if (eventRow.codename_mode === "event_wide" && requestedRoundId !== null) {
+      return {
+        ok: false,
+        message:
+          "This event uses Event-Wide codenames; round-specific assignments are not allowed.",
+      };
+    }
 
-    // Fetch related entries, contingents, participants for human-readable organizer view
-    const entryIds = codenames.map((c) => c.event_entry_id);
-    const { data: entries } = await supabase
-      .from("event_entries")
-      .select("id, entry_type, status, contingent_id, participant_id")
-      .in("id", entryIds)
-      .returns<EventEntryRecord[]>();
+    let roundRow: Pick<
+      RoundRecord,
+      "id" | "event_id" | "round_number" | "status"
+    > | null = null;
 
-    const contingentIds = (entries ?? [])
-      .map((e) => e.contingent_id)
-      .filter(Boolean) as string[];
-    const participantIds = (entries ?? [])
-      .map((e) => e.participant_id)
-      .filter(Boolean) as string[];
+    if (eventRow.codename_mode === "per_round") {
+      if (!requestedRoundId) {
+        return {
+          ok: false,
+          message:
+            "This event uses Per-Round codenames; select a round before assigning or correcting codenames.",
+        };
+      }
 
-    const [{ data: contingents }, { data: participants }] = await Promise.all([
-      contingentIds.length > 0
-        ? supabase
-            .from("contingents")
-            .select("id, contingent_code, name, institution_name")
-            .in("id", contingentIds)
-            .returns<
-              Pick<
-                ContingentRecord,
-                "id" | "contingent_code" | "name" | "institution_name"
-              >[]
-            >()
-        : Promise.resolve({ data: [] }),
-      participantIds.length > 0
-        ? supabase
-            .from("participants")
-            .select("id, participant_code, full_name, institution_name")
-            .in("id", participantIds)
-            .returns<
-              Pick<
-                ParticipantRecord,
-                "id" | "participant_code" | "full_name" | "institution_name"
-              >[]
-            >()
-        : Promise.resolve({ data: [] }),
-    ]);
+      const { data: loadedRound, error: roundErr } = await supabase
+        .from("rounds")
+        .select("id, event_id, round_number, status")
+        .eq("id", requestedRoundId)
+        .eq("event_id", eventRow.id)
+        .maybeSingle<
+          Pick<RoundRecord, "id" | "event_id" | "round_number" | "status">
+        >();
 
-    const contingentMap = new Map((contingents ?? []).map((c) => [c.id, c]));
-    const participantMap = new Map((participants ?? []).map((p) => [p.id, p]));
-    const entryMap = new Map(
-      (entries ?? []).map((e) => [
-        e.id,
-        {
-          id: e.id,
-          entry_type: e.entry_type,
-          status: e.status,
-          contingent: e.contingent_id ? contingentMap.get(e.contingent_id) ?? null : null,
-          participant: e.participant_id ? participantMap.get(e.participant_id) ?? null : null,
-        },
-      ]),
+      if (roundErr || !loadedRound) {
+        return {
+          ok: false,
+          message: "Selected round was not found for this event.",
+        };
+      }
+      roundRow = loadedRound;
+    }
+
+    const scopeCheck = validateCodenameScope({
+      eventId: eventRow.id,
+      codenameMode: eventRow.codename_mode,
+      eventStatus: eventRow.status,
+      roundId: requestedRoundId,
+      round: roundRow,
+    });
+    if (!scopeCheck.ok) return { ok: false, message: scopeCheck.error };
+
+    let existingQuery = supabase
+      .from("entry_codenames")
+      .select("id, codename, notes")
+      .eq("event_id", eventRow.id)
+      .eq("event_entry_id", entryCheck.value);
+
+    if (scopeCheck.value.roundId === null) {
+      existingQuery = existingQuery.is("round_id", null);
+    } else {
+      existingQuery = existingQuery.eq("round_id", scopeCheck.value.roundId);
+    }
+
+    const { data: existingAssignment } = await existingQuery.maybeSingle<{
+      id: string;
+      codename: string;
+      notes: string | null;
+    }>();
+
+    if (isCorrection && !existingAssignment) {
+      return {
+        ok: false,
+        message:
+          "No existing codename assignment was found for this entry in the selected scope.",
+      };
+    }
+
+    if (
+      isCorrection &&
+      existingAssignment &&
+      existingAssignment.codename === codenameCheck.value &&
+      (existingAssignment.notes ?? null) === notes
+    ) {
+      return {
+        ok: false,
+        message: "The codename and note are already set to those values.",
+      };
+    }
+
+    const { data: rpcRaw, error: rpcErr } = await supabase.rpc(
+      "upsert_entry_codename",
+      {
+        p_event_id: eventRow.id,
+        p_round_id: scopeCheck.value.roundId,
+        p_event_entry_id: entryCheck.value,
+        p_codename: codenameCheck.value,
+        p_allow_overwrite: isCorrection,
+        p_notes: notes,
+      },
     );
 
-    return codenames.map((cn) => ({
-      ...cn,
-      entry: entryMap.get(cn.event_entry_id) ?? null,
-    }));
-  } catch {
-    return [];
+    if (rpcErr || !rpcRaw) {
+      return {
+        ok: false,
+        message: mapCodenameDbError(
+          rpcErr ?? {},
+          "Unable to save codename assignment.",
+        ),
+      };
+    }
+
+    const rpcResult = rpcRaw as UpsertCodenameRpcResult;
+
+    revalidatePath(`/events/${eventRow.id}`);
+    revalidatePath(`/events/${eventRow.id}/codenames`);
+
+    const successMessage =
+      rpcResult.operation === "corrected"
+        ? `Updated codename from ${rpcResult.before_codename} to ${rpcResult.after_codename}.`
+        : `Assigned codename ${rpcResult.after_codename}.`;
+
+    return { ok: true, message: successMessage };
+  } catch (err) {
+    if (err instanceof OrganiserAuthError) {
+      return { ok: false, message: err.message };
+    }
+    console.error(
+      "[codenames] manual mutation error:",
+      err instanceof Error ? err.message : "unknown",
+    );
+    return {
+      ok: false,
+      message: "Unexpected error while saving codename assignment.",
+    };
   }
 }

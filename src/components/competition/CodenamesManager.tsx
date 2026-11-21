@@ -1,469 +1,857 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  AlertCircle,
+  AlertTriangle,
+  ArrowLeft,
   CheckCircle2,
-  Edit2,
-  Hash,
-  Key,
-  RefreshCw,
+  Edit3,
+  KeyRound,
+  Plus,
   Search,
-  Shield,
-  Sparkles,
-  Users,
-  X,
+  ShieldAlert,
 } from "lucide-react";
 import {
-  assignCodenameAction,
-  generateCodenamesAction,
+  assignManualCodenameAction,
+  assignMissingCodenamesAction,
+  correctEntryCodenameAction,
 } from "@/app/actions/codenames";
-import type { CodenameView } from "@/types/data-operations";
-import type { EventRecord, RoundRecord } from "@/types/competition";
-import type { EventEntryView } from "@/components/competition/EventDetailManager";
+import type { CompetitionActionResult } from "@/app/actions/competition";
+import { isEntryEligibleForCodenameGeneration } from "@/lib/codenames/validation";
+import {
+  CODENAME_MODE_LABELS,
+  CODENAME_SOURCE_LABELS,
+  ENTRY_MODE_LABELS,
+  ENTRY_STATUS_LABELS,
+  EVENT_STATUS_LABELS,
+  ROUND_STATUS_LABELS,
+  type ContingentRecord,
+  type EntryCodenameRecord,
+  type EventEntryRecord,
+  type EventRecord,
+  type ParticipantRecord,
+  type RoundRecord,
+} from "@/types/competition";
+
+export interface CodenameEntryView extends EventEntryRecord {
+  contingent: Pick<
+    ContingentRecord,
+    "id" | "contingent_code" | "name" | "institution_name" | "is_active"
+  > | null;
+  participant: Pick<
+    ParticipantRecord,
+    "id" | "participant_code" | "full_name" | "institution_name" | "is_active"
+  > | null;
+  assignment: EntryCodenameRecord | null;
+}
 
 interface CodenamesManagerProps {
-  event: EventRecord;
-  round?: RoundRecord | null;
-  entries: EventEntryView[];
-  initialCodenames: CodenameView[];
+  event: Pick<
+    EventRecord,
+    "id" | "code" | "name" | "codename_mode" | "entry_mode" | "status"
+  >;
+  rounds: Pick<RoundRecord, "id" | "round_number" | "name" | "status">[];
+  selectedRoundId: string | null;
+  entries: CodenameEntryView[];
+  migrationMissing: boolean;
+  loadError: string | null;
 }
+
+type AssignmentFilter = "all" | "unassigned" | "assigned";
 
 export function CodenamesManager({
   event,
-  round,
+  rounds,
+  selectedRoundId,
   entries,
-  initialCodenames,
+  migrationMissing,
+  loadError,
 }: CodenamesManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [codenames, setCodenames] = useState<CodenameView[]>(initialCodenames);
+  const [feedback, setFeedback] = useState<CompetitionActionResult | null>(
+    null,
+  );
+  const [filter, setFilter] = useState<AssignmentFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [feedback, setFeedback] = useState<{
-    type: "success" | "error";
-    message: string;
-  } | null>(null);
 
-  // Edit / Manual Assign Modal state
-  const [editingEntry, setEditingEntry] = useState<{
-    entryId: string;
-    entryName: string;
-    currentCodename: string;
-  } | null>(null);
-  const [manualInput, setManualInput] = useState("");
+  // Active inline row editor state (only one row editor open at a time)
+  const [activeRowId, setActiveRowId] = useState<string | null>(null);
+  const [activeMode, setActiveMode] = useState<"assign" | "correct" | null>(
+    null,
+  );
+  const [codenameInput, setCodenameInput] = useState("");
+  const [notesInput, setNotesInput] = useState("");
+  const [confirmOverwrite, setConfirmOverwrite] = useState(false);
 
-  // Bulk Generator Modal / state
-  const [showGenerateModal, setShowGenerateModal] = useState(false);
-  const [customPrefix, setCustomPrefix] = useState("");
+  const selectedRound = useMemo(() => {
+    if (event.codename_mode !== "per_round" || !selectedRoundId) return null;
+    return rounds.find((r) => r.id === selectedRoundId) ?? null;
+  }, [event.codename_mode, rounds, selectedRoundId]);
 
-  const isPerRound = event.codename_mode === "per_round";
-  const targetRoundId = isPerRound ? round?.id ?? null : null;
+  const isEventArchived = event.status === "archived";
+  const isRoundMissing =
+    event.codename_mode === "per_round" && selectedRound === null;
+  const isRoundArchived =
+    event.codename_mode === "per_round" &&
+    selectedRound?.status === "archived";
+  const isScopeReadOnly =
+    migrationMissing ||
+    Boolean(loadError) ||
+    isEventArchived ||
+    isRoundMissing ||
+    isRoundArchived;
 
-  // Map entry ID to codename
-  const codenameMap = new Map<string, CodenameView>();
-  for (const cn of codenames) {
-    if (isPerRound) {
-      if (cn.round_id === targetRoundId) {
-        codenameMap.set(cn.event_entry_id, cn);
-      }
-    } else {
-      if (!cn.round_id) {
-        codenameMap.set(cn.event_entry_id, cn);
+  const counts = useMemo(() => {
+    let assigned = 0;
+    let eligibleUnassigned = 0;
+    let ineligibleUnassigned = 0;
+
+    for (const entry of entries) {
+      if (entry.assignment) {
+        assigned += 1;
+      } else if (isEntryEligibleForCodenameGeneration(entry.status)) {
+        eligibleUnassigned += 1;
+      } else {
+        ineligibleUnassigned += 1;
       }
     }
+
+    return {
+      total: entries.length,
+      assigned,
+      eligibleUnassigned,
+      ineligibleUnassigned,
+      unassignedTotal: entries.length - assigned,
+    };
+  }, [entries]);
+
+  const filteredEntries = useMemo(() => {
+    const normalizedSearch = searchQuery.trim().toLowerCase();
+    return entries.filter((entry) => {
+      if (filter === "assigned" && !entry.assignment) return false;
+      if (filter === "unassigned" && entry.assignment) return false;
+
+      if (!normalizedSearch) return true;
+
+      const haystack = [
+        entry.assignment?.codename ?? "",
+        entry.contingent?.contingent_code ?? "",
+        entry.contingent?.name ?? "",
+        entry.contingent?.institution_name ?? "",
+        entry.participant?.participant_code ?? "",
+        entry.participant?.full_name ?? "",
+        entry.participant?.institution_name ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(normalizedSearch);
+    });
+  }, [entries, filter, searchQuery]);
+
+  function closeEditor() {
+    setActiveRowId(null);
+    setActiveMode(null);
+    setCodenameInput("");
+    setNotesInput("");
+    setConfirmOverwrite(false);
   }
 
-  const assignedCount = entries.filter((e) => codenameMap.has(e.id)).length;
-  const unassignedCount = entries.length - assignedCount;
-
-  // Filter entries by search query
-  const filteredEntries = entries.filter((entry) => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return true;
-    const assigned = codenameMap.get(entry.id)?.codename.toLowerCase() ?? "";
-    const name = (
-      entry.entry_type === "contingent"
-        ? entry.contingent?.name
-        : entry.participant?.full_name
-    )?.toLowerCase() ?? "";
-    const code = (
-      entry.entry_type === "contingent"
-        ? entry.contingent?.contingent_code
-        : entry.participant?.participant_code
-    )?.toLowerCase() ?? "";
-    return assigned.includes(q) || name.includes(q) || code.includes(q);
-  });
-
-  const handleBulkGenerate = () => {
+  function openAssignEditor(entry: CodenameEntryView) {
     setFeedback(null);
-    startTransition(async () => {
-      const res = await generateCodenamesAction({
-        eventId: event.id,
-        roundId: targetRoundId,
-        customPrefix: customPrefix.trim() || undefined,
-      });
+    setActiveRowId(entry.id);
+    setActiveMode("assign");
+    setCodenameInput("");
+    setNotesInput("");
+    setConfirmOverwrite(false);
+  }
 
-      if (!res.ok) {
-        setFeedback({ type: "error", message: res.message });
-      } else {
-        setFeedback({ type: "success", message: res.message });
-        setShowGenerateModal(false);
+  function openCorrectEditor(entry: CodenameEntryView) {
+    setFeedback(null);
+    setActiveRowId(entry.id);
+    setActiveMode("correct");
+    setCodenameInput(entry.assignment?.codename ?? "");
+    setNotesInput(entry.assignment?.notes ?? "");
+    setConfirmOverwrite(false);
+  }
+
+  function handleRoundChange(nextRoundId: string) {
+    closeEditor();
+    setFeedback(null);
+    router.push(
+      `/events/${event.id}/codenames?roundId=${encodeURIComponent(nextRoundId)}`,
+    );
+  }
+
+  function handleBatchAssign() {
+    if (isScopeReadOnly || counts.eligibleUnassigned === 0) return;
+    setFeedback(null);
+    closeEditor();
+    startTransition(async () => {
+      const result = await assignMissingCodenamesAction({
+        eventId: event.id,
+        roundId:
+          event.codename_mode === "per_round"
+            ? (selectedRound?.id ?? null)
+            : null,
+      });
+      setFeedback(result);
+      if (result.ok) {
         router.refresh();
       }
     });
-  };
+  }
 
-  const handleOpenEdit = (entry: EventEntryView) => {
-    const current = codenameMap.get(entry.id)?.codename ?? "";
-    const name =
-      entry.entry_type === "contingent"
-        ? entry.contingent?.name ?? "Contingent Entry"
-        : entry.participant?.full_name ?? "Individual Entry";
-
-    setEditingEntry({
-      entryId: entry.id,
-      entryName: name,
-      currentCodename: current,
-    });
-    setManualInput(current);
-    setFeedback(null);
-  };
-
-  const handleSaveManualCodename = (e: React.FormEvent) => {
+  function handleInlineSubmit(
+    e: React.FormEvent<HTMLFormElement>,
+    entry: CodenameEntryView,
+    mode: "assign" | "correct",
+  ) {
     e.preventDefault();
-    if (!editingEntry) return;
+    if (isScopeReadOnly) return;
+
+    const formData = new FormData();
+    formData.set("eventId", event.id);
+    formData.set("eventEntryId", entry.id);
+    if (event.codename_mode === "per_round" && selectedRound) {
+      formData.set("roundId", selectedRound.id);
+    }
+    formData.set("codename", codenameInput);
+    formData.set("notes", notesInput);
+    if (mode === "correct") {
+      formData.set("confirmOverwrite", confirmOverwrite ? "true" : "false");
+    }
 
     setFeedback(null);
     startTransition(async () => {
-      const res = await assignCodenameAction({
-        eventId: event.id,
-        roundId: targetRoundId,
-        eventEntryId: editingEntry.entryId,
-        codename: manualInput.trim(),
-      });
+      const result =
+        mode === "correct"
+          ? await correctEntryCodenameAction(null, formData)
+          : await assignManualCodenameAction(null, formData);
 
-      if (!res.ok) {
-        setFeedback({ type: "error", message: res.message });
-      } else {
-        setFeedback({ type: "success", message: res.message });
-        setEditingEntry(null);
+      setFeedback(result);
+      if (result.ok) {
+        closeEditor();
         router.refresh();
       }
     });
-  };
+  }
 
   return (
-    <section
-      aria-labelledby="codenames-heading"
-      className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-xs"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-[#4B0507]" />
-            <h2
-              id="codenames-heading"
-              className="font-display text-lg font-bold text-slate-900"
-            >
-              Anonymous Codenames
-            </h2>
-            <span
-              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                isPerRound
-                  ? "bg-purple-100 text-purple-800"
-                  : "bg-blue-100 text-blue-800"
-              }`}
-            >
-              {isPerRound ? "Per-Round Scope" : "Event-Wide Scope"}
-            </span>
-          </div>
-          <p className="mt-1 text-xs text-slate-500">
-            {isPerRound
-              ? `Codenames are scoped to round ${round?.round_number ?? ""}: "${round?.name ?? ""}". Each round receives unique randomized codenames.`
-              : "Codenames are scoped across the entire event. Each entry retains a single codename throughout all rounds."}
-          </p>
-        </div>
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link
+          href={`/events/${event.id}`}
+          className="inline-flex min-h-9 items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-[#4B0507]"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          <span>
+            Back to {event.code} · {event.name}
+          </span>
+        </Link>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowGenerateModal(true)}
-            className="flex items-center gap-1.5 rounded-md bg-[#4B0507] px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[#380405] transition-colors cursor-pointer"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>Generate Codenames</span>
-          </button>
-        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700">
+          <ShieldAlert
+            className="h-3.5 w-3.5 text-[#4B0507]"
+            aria-hidden="true"
+          />
+          Organiser-Only Identity Mapping
+        </span>
       </div>
 
-      {/* Feedback Alert */}
-      {feedback && (
+      {migrationMissing ? (
         <div
-          className={`flex items-center gap-2 rounded-md p-3 text-xs ${
-            feedback.type === "success"
-              ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "border border-red-200 bg-red-50 text-red-800"
+          role="alert"
+          className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
+        >
+          <AlertTriangle
+            className="mt-0.5 h-5 w-5 shrink-0 text-amber-700"
+            aria-hidden="true"
+          />
+          <div className="space-y-1">
+            <p className="font-semibold">
+              Stage 2B.3 database migration is not yet applied
+            </p>
+            <p className="text-amber-900">
+              The <code className="font-mono">entry_codenames</code> table was
+              not found in Supabase. Apply migration{" "}
+              <code className="font-mono">
+                supabase/migrations/202611200005_stage2b3_codenames.sql
+              </code>{" "}
+              before assigning or editing codenames.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {loadError ? (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-950"
+        >
+          <AlertTriangle
+            className="mt-0.5 h-5 w-5 shrink-0 text-red-700"
+            aria-hidden="true"
+          />
+          <div className="space-y-1">
+            <p className="font-semibold">Unable to load codename records</p>
+            <p className="text-red-900">{loadError}</p>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Scope & Summary Strip */}
+      <section
+        aria-label="Codename scope and summary"
+        className="rounded-lg border border-slate-200 bg-white p-5"
+      >
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-5">
+          <div>
+            <p className="text-xs font-medium text-slate-500">Codename Mode</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900">
+              {CODENAME_MODE_LABELS[event.codename_mode]}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {ENTRY_MODE_LABELS[event.entry_mode]} ·{" "}
+              {EVENT_STATUS_LABELS[event.status]}
+            </p>
+          </div>
+
+          <div className="lg:col-span-2">
+            <p className="text-xs font-medium text-slate-500">Active Scope</p>
+            {event.codename_mode === "event_wide" ? (
+              <div className="mt-1">
+                <p className="text-sm font-semibold text-slate-900">
+                  Whole Event ({event.code})
+                </p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Each entry retains the same codename across all rounds.
+                </p>
+              </div>
+            ) : rounds.length === 0 ? (
+              <div className="mt-1">
+                <p className="text-sm font-semibold text-amber-800">
+                  No rounds configured yet
+                </p>
+                <p className="mt-0.5 text-xs text-slate-600">
+                  Add at least one round on the event page before assigning
+                  per-round codenames.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-1 space-y-1">
+                <label htmlFor="codename-round-select" className="sr-only">
+                  Select Round Scope
+                </label>
+                <select
+                  id="codename-round-select"
+                  value={selectedRound?.id ?? ""}
+                  onChange={(e) => handleRoundChange(e.target.value)}
+                  className="min-h-9 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20"
+                >
+                  {rounds.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      Round {r.round_number}: {r.name} (
+                      {ROUND_STATUS_LABELS[r.status]})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-500">
+                  Codename assignments are isolated to the selected round.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-slate-500">Assigned</p>
+            <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-emerald-800">
+              {counts.assigned} / {counts.total}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Existing codenames preserved
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-slate-500">
+              Eligible Unassigned
+            </p>
+            <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-[#4B0507]">
+              {counts.eligibleUnassigned}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {counts.ineligibleUnassigned > 0
+                ? `${counts.ineligibleUnassigned} withdrawn / disqualified`
+                : "Registered & checked-in entries"}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Controlled Batch Generation Card */}
+      <section
+        aria-labelledby="batch-codenames-heading"
+        className="rounded-lg border border-slate-200 bg-white p-5"
+      >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <h2
+              id="batch-codenames-heading"
+              className="flex items-center gap-2 font-display text-base font-semibold text-slate-900"
+            >
+              <KeyRound
+                className="h-4 w-4 text-[#4B0507]"
+                aria-hidden="true"
+              />
+              <span>Automatic Codename Assignment</span>
+            </h2>
+            <p className="max-w-2xl text-sm text-slate-600">
+              Generate unique, anonymous codenames for eligible unassigned
+              entries (Registered or Checked In). Existing assignments are{" "}
+              <span className="font-medium text-slate-800">
+                never overwritten or regenerated in bulk
+              </span>
+              .
+            </p>
+            {isEventArchived ? (
+              <p className="text-xs font-medium text-amber-800">
+                This event is archived. Codenames are read-only.
+              </p>
+            ) : isRoundArchived ? (
+              <p className="text-xs font-medium text-amber-800">
+                This round is archived. Codenames in this round are read-only.
+              </p>
+            ) : null}
+          </div>
+
+          <button
+            type="button"
+            disabled={
+              isPending || isScopeReadOnly || counts.eligibleUnassigned === 0
+            }
+            onClick={handleBatchAssign}
+            className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-[#4B0507] px-4 py-2 text-sm font-medium whitespace-nowrap text-white transition-colors hover:bg-[#380305] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
+          >
+            <Plus className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>
+              {isPending
+                ? "Assigning..."
+                : `Assign Missing Codenames (${counts.eligibleUnassigned})`}
+            </span>
+          </button>
+        </div>
+      </section>
+
+      {feedback ? (
+        <div
+          role={feedback.ok ? "status" : "alert"}
+          aria-live="polite"
+          className={`flex items-start gap-2.5 rounded-lg border px-4 py-3 text-sm ${
+            feedback.ok
+              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+              : "border-red-200 bg-red-50 text-red-900"
           }`}
         >
-          {feedback.type === "success" ? (
-            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+          {feedback.ok ? (
+            <CheckCircle2
+              className="mt-0.5 h-4 w-4 shrink-0"
+              aria-hidden="true"
+            />
           ) : (
-            <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+            <AlertTriangle
+              className="mt-0.5 h-4 w-4 shrink-0"
+              aria-hidden="true"
+            />
           )}
           <span>{feedback.message}</span>
         </div>
-      )}
+      ) : null}
 
-      {/* Summary Counts Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-4">
-          <span className="text-slate-600">
-            Total Entries: <strong className="text-slate-900">{entries.length}</strong>
-          </span>
-          <span className="text-emerald-700">
-            Assigned: <strong>{assignedCount}</strong>
-          </span>
-          <span className="text-amber-700">
-            Unassigned: <strong>{unassignedCount}</strong>
-          </span>
+      {/* Filter & Search Bar + Assignment Table */}
+      <section aria-labelledby="codename-table-heading" className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2
+              id="codename-table-heading"
+              className="font-display text-lg font-semibold text-slate-900"
+            >
+              Entry Codename Assignments
+            </h2>
+            <p className="text-sm text-slate-600">
+              Review unassigned vs assigned entries and perform audited manual
+              assignments or corrections.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div
+              role="group"
+              aria-label="Filter entries by assignment status"
+              className="inline-flex rounded-md border border-slate-300 bg-white p-0.5"
+            >
+              {(
+                [
+                  { id: "all", label: `All (${counts.total})` },
+                  {
+                    id: "unassigned",
+                    label: `Unassigned (${counts.unassignedTotal})`,
+                  },
+                  { id: "assigned", label: `Assigned (${counts.assigned})` },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setFilter(tab.id)}
+                  className={`rounded px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
+                    filter === tab.id
+                      ? "bg-[#4B0507] text-white"
+                      : "text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-slate-400"
+                aria-hidden="true"
+              />
+              <input
+                type="search"
+                aria-label="Filter by codename, code, or participant"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search codename or entry..."
+                className="min-h-9 w-56 rounded-md border border-slate-300 bg-white pr-3 pl-8 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20"
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="relative w-64">
-          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search entry or codename..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-md border border-slate-300 bg-white py-1.5 pl-8 pr-3 text-xs text-slate-800 placeholder-slate-400 focus:border-[#4B0507] focus:outline-none"
-          />
-        </div>
-      </div>
-
-      {/* Table of Entries and Codenames */}
-      {entries.length === 0 ? (
-        <div className="p-8 text-center text-xs text-slate-500">
-          No entries registered for this event yet. Add event entries first to assign codenames.
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-md border border-slate-200">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-              <tr>
-                <th className="p-3">Entry Name / Code</th>
-                <th className="p-3">Type</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">Assigned Codename</th>
-                <th className="p-3 text-right">Action</th>
+        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <table className="w-full border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50/80 text-xs font-medium text-slate-600">
+                <th scope="col" className="px-4 py-3">
+                  Type
+                </th>
+                <th scope="col" className="px-4 py-3">
+                  Registered Identity (Organiser View)
+                </th>
+                <th scope="col" className="px-4 py-3">
+                  Entry Status
+                </th>
+                <th scope="col" className="px-4 py-3">
+                  Codename &amp; Source
+                </th>
+                <th scope="col" className="px-4 py-3 text-right">
+                  Actions
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredEntries.map((entry) => {
-                const cn = codenameMap.get(entry.id);
-                const displayName =
-                  entry.entry_type === "contingent"
-                    ? entry.contingent?.name ?? "Contingent Entry"
-                    : entry.participant?.full_name ?? "Individual Entry";
-                const displayCode =
-                  entry.entry_type === "contingent"
-                    ? entry.contingent?.contingent_code
-                    : entry.participant?.participant_code;
+            <tbody className="divide-y divide-slate-200">
+              {filteredEntries.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-4 py-8 text-center text-sm text-slate-500"
+                  >
+                    {entries.length === 0
+                      ? "No entries are registered in this event yet. Add entries from the event page or registration import."
+                      : "No entries match the current filter or search."}
+                  </td>
+                </tr>
+              ) : (
+                filteredEntries.map((entry) => {
+                  const isEditingThis = activeRowId === entry.id;
+                  const eligibleForNew =
+                    isEntryEligibleForCodenameGeneration(entry.status);
+                  const subjectCode =
+                    entry.entry_type === "contingent"
+                      ? entry.contingent?.contingent_code
+                      : entry.participant?.participant_code;
+                  const subjectName =
+                    entry.entry_type === "contingent"
+                      ? entry.contingent?.name
+                      : entry.participant?.full_name;
+                  const subjectInstitution =
+                    entry.entry_type === "contingent"
+                      ? entry.contingent?.institution_name
+                      : entry.participant?.institution_name;
 
-                return (
-                  <tr key={entry.id} className="hover:bg-slate-50/50">
-                    <td className="p-3">
-                      <div className="font-semibold text-slate-900">{displayName}</div>
-                      <div className="font-mono text-[11px] text-slate-500">
-                        {displayCode || "(No code)"}
-                      </div>
-                    </td>
-                    <td className="p-3">
-                      <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-700">
-                        {entry.entry_type}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-semibold capitalize text-slate-700">
-                        {entry.status}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      {cn ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-md bg-stone-100 border border-stone-200 px-2.5 py-1 font-mono text-xs font-bold text-[#4B0507]">
-                          <Hash className="h-3.5 w-3.5" />
-                          <span>{cn.codename}</span>
-                        </span>
-                      ) : (
-                        <span className="rounded bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-medium text-amber-700">
-                          Unassigned
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEdit(entry)}
-                        className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-                      >
-                        <Edit2 className="h-3 w-3" />
-                        <span>{cn ? "Change" : "Assign"}</span>
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+                  return (
+                    <React.Fragment key={entry.id}>
+                      <tr className="align-middle hover:bg-slate-50/60">
+                        <td className="px-4 py-3 text-xs font-medium text-slate-700 capitalize">
+                          {entry.entry_type}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="space-y-0.5">
+                            <p className="text-sm text-slate-900">
+                              <span className="font-mono text-xs font-medium text-[#4B0507]">
+                                {subjectCode ?? "—"}
+                              </span>{" "}
+                              <span className="font-medium">
+                                {subjectName ?? "Unknown entry subject"}
+                              </span>
+                            </p>
+                            {subjectInstitution ? (
+                              <p className="text-xs text-slate-500">
+                                {subjectInstitution}
+                              </p>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-xs">
+                          <span
+                            className={`inline-flex rounded px-2 py-0.5 font-medium ${
+                              eligibleForNew
+                                ? "bg-slate-100 text-slate-800"
+                                : "bg-amber-50 text-amber-800"
+                            }`}
+                          >
+                            {ENTRY_STATUS_LABELS[entry.status]}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          {entry.assignment ? (
+                            <div className="space-y-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded border border-slate-200 bg-slate-50 px-2.5 py-0.5 font-mono text-xs font-semibold tracking-wide text-slate-900">
+                                  {entry.assignment.codename}
+                                </span>
+                                <span
+                                  className={`rounded px-2 py-0.5 text-[11px] font-medium ${
+                                    entry.assignment.assignment_source ===
+                                    "manual"
+                                      ? "bg-amber-50 text-amber-900"
+                                      : "bg-emerald-50 text-emerald-900"
+                                  }`}
+                                >
+                                  {
+                                    CODENAME_SOURCE_LABELS[
+                                      entry.assignment.assignment_source
+                                    ]
+                                  }
+                                </span>
+                              </div>
+                              {entry.assignment.notes ? (
+                                <p className="text-xs text-slate-500">
+                                  Note: {entry.assignment.notes}
+                                </p>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <span className="inline-flex rounded border border-dashed border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-500">
+                              Unassigned
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {isScopeReadOnly ? (
+                            <span className="text-xs text-slate-400">
+                              Read-only
+                            </span>
+                          ) : entry.assignment ? (
+                            <button
+                              type="button"
+                              disabled={isPending}
+                              onClick={() =>
+                                isEditingThis && activeMode === "correct"
+                                  ? closeEditor()
+                                  : openCorrectEditor(entry)
+                              }
+                              className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                            >
+                              <Edit3
+                                className="h-3.5 w-3.5"
+                                aria-hidden="true"
+                              />
+                              <span>
+                                {isEditingThis && activeMode === "correct"
+                                  ? "Close"
+                                  : "Correct Codename"}
+                              </span>
+                            </button>
+                          ) : eligibleForNew ? (
+                            <button
+                              type="button"
+                              disabled={isPending}
+                              onClick={() =>
+                                isEditingThis && activeMode === "assign"
+                                  ? closeEditor()
+                                  : openAssignEditor(entry)
+                              }
+                              className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:border-[#4B0507] hover:text-[#4B0507] disabled:opacity-50"
+                            >
+                              <Plus
+                                className="h-3.5 w-3.5"
+                                aria-hidden="true"
+                              />
+                              <span>
+                                {isEditingThis && activeMode === "assign"
+                                  ? "Close"
+                                  : "Assign Manually"}
+                              </span>
+                            </button>
+                          ) : (
+                            <span className="text-xs text-slate-400">
+                              Ineligible ({ENTRY_STATUS_LABELS[entry.status]})
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+
+                      {isEditingThis && activeMode ? (
+                        <tr className="bg-slate-50/90">
+                          <td colSpan={5} className="px-4 py-4">
+                            <form
+                              onSubmit={(e) =>
+                                handleInlineSubmit(e, entry, activeMode)
+                              }
+                              className="space-y-4 rounded-md border border-slate-200 bg-white p-4"
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                                <p className="text-sm font-semibold text-slate-900">
+                                  {activeMode === "correct"
+                                    ? `Correct Codename for ${subjectCode ?? entry.id}`
+                                    : `Manual Codename Assignment for ${subjectCode ?? entry.id}`}
+                                </p>
+                                {activeMode === "correct" && entry.assignment ? (
+                                  <span className="font-mono text-xs text-slate-600">
+                                    Current: {entry.assignment.codename}
+                                  </span>
+                                ) : null}
+                              </div>
+
+                              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <div className="space-y-1.5">
+                                  <label
+                                    htmlFor={`codename-input-${entry.id}`}
+                                    className="block text-xs font-medium text-slate-700"
+                                  >
+                                    {activeMode === "correct"
+                                      ? "New Codename"
+                                      : "Codename"}
+                                  </label>
+                                  <input
+                                    id={`codename-input-${entry.id}`}
+                                    name="codename"
+                                    type="text"
+                                    required
+                                    minLength={4}
+                                    maxLength={40}
+                                    value={codenameInput}
+                                    onChange={(e) =>
+                                      setCodenameInput(
+                                        e.target.value.toUpperCase(),
+                                      )
+                                    }
+                                    placeholder="e.g. AMBER-FALCON-24"
+                                    className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm uppercase text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20"
+                                  />
+                                  <p className="text-[11px] text-slate-500">
+                                    4–40 characters, uppercase letters, numbers,
+                                    and single hyphens only.
+                                  </p>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                  <label
+                                    htmlFor={`codename-notes-${entry.id}`}
+                                    className="block text-xs font-medium text-slate-700"
+                                  >
+                                    Audit Note (Optional)
+                                  </label>
+                                  <input
+                                    id={`codename-notes-${entry.id}`}
+                                    name="notes"
+                                    type="text"
+                                    maxLength={500}
+                                    value={notesInput}
+                                    onChange={(e) =>
+                                      setNotesInput(e.target.value)
+                                    }
+                                    placeholder="Reason for manual assignment or correction"
+                                    className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20"
+                                  />
+                                </div>
+                              </div>
+
+                              {activeMode === "correct" && entry.assignment ? (
+                                <div className="flex items-start gap-2.5 rounded-md border border-amber-200 bg-amber-50 px-3.5 py-3">
+                                  <input
+                                    id={`confirm-overwrite-${entry.id}`}
+                                    name="confirmOverwrite"
+                                    type="checkbox"
+                                    checked={confirmOverwrite}
+                                    onChange={(e) =>
+                                      setConfirmOverwrite(e.target.checked)
+                                    }
+                                    className="mt-0.5 h-4 w-4 rounded border-amber-400 accent-[#4B0507]"
+                                  />
+                                  <label
+                                    htmlFor={`confirm-overwrite-${entry.id}`}
+                                    className="text-xs leading-relaxed text-amber-950"
+                                  >
+                                    <span className="font-semibold">
+                                      Confirm overwrite:
+                                    </span>{" "}
+                                    Replace existing codename{" "}
+                                    <code className="font-mono font-semibold">
+                                      {entry.assignment.codename}
+                                    </code>{" "}
+                                    for this entry in the current scope. This
+                                    change is recorded in the audit log.
+                                  </label>
+                                </div>
+                              ) : null}
+
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  disabled={isPending}
+                                  onClick={closeEditor}
+                                  className="min-h-9 rounded-md border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="submit"
+                                  disabled={
+                                    isPending ||
+                                    !codenameInput.trim() ||
+                                    (activeMode === "correct" &&
+                                      !confirmOverwrite)
+                                  }
+                                  className="min-h-9 rounded-md bg-[#4B0507] px-4 py-1.5 text-xs font-medium text-white hover:bg-[#380305] disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {isPending
+                                    ? "Saving..."
+                                    : activeMode === "correct"
+                                      ? "Confirm & Save Correction"
+                                      : "Save Manual Codename"}
+                                </button>
+                              </div>
+                            </form>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </React.Fragment>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
-      )}
-
-      {/* Manual Assign / Edit Modal */}
-      {editingEntry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-5 shadow-lg space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-              <h3 className="font-display text-sm font-bold text-slate-900">
-                Assign / Replace Codename
-              </h3>
-              <button
-                type="button"
-                onClick={() => setEditingEntry(null)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveManualCodename} className="space-y-3">
-              <div>
-                <span className="text-xs text-slate-500">Target Entry:</span>
-                <p className="text-xs font-semibold text-slate-800">
-                  {editingEntry.entryName}
-                </p>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="manual-codename-input"
-                  className="block text-xs font-semibold text-slate-700"
-                >
-                  Codename (2–60 characters)
-                </label>
-                <input
-                  id="manual-codename-input"
-                  type="text"
-                  required
-                  value={manualInput}
-                  onChange={(e) => setManualInput(e.target.value)}
-                  placeholder="e.g. SOLSTICE-01"
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-1.5 font-mono text-xs uppercase text-slate-900 focus:border-[#4B0507] focus:outline-none"
-                />
-                <p className="mt-1 text-[11px] text-slate-500">
-                  Must be unique within the current {isPerRound ? "round" : "event"} scope.
-                </p>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setEditingEntry(null)}
-                  className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isPending || !manualInput.trim()}
-                  className="rounded-md bg-[#4B0507] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#380405] disabled:opacity-50"
-                >
-                  {isPending ? "Saving..." : "Save Codename"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Bulk Generator Modal */}
-      {showGenerateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-5 shadow-lg space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-[#4B0507]" />
-                <h3 className="font-display text-sm font-bold text-slate-900">
-                  Bulk Codename Generator
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowGenerateModal(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs text-slate-600">
-              <p>
-                Generates unique, human-readable codenames for all <strong>{unassignedCount}</strong> unassigned entry(s).
-              </p>
-              <div className="rounded-md bg-stone-50 border border-stone-200 p-2.5 text-[11px] text-stone-800">
-                <strong>Non-Destructive Guarantee:</strong> Existing assigned codenames (<strong>{assignedCount}</strong>) will be strictly preserved and never overwritten or reassigned.
-              </div>
-
-              <div>
-                <label
-                  htmlFor="custom-prefix-input"
-                  className="block font-semibold text-slate-700"
-                >
-                  Custom Prefix (Optional)
-                </label>
-                <input
-                  id="custom-prefix-input"
-                  type="text"
-                  placeholder="e.g. SOL or leave blank for Solstice celestial theme"
-                  value={customPrefix}
-                  onChange={(e) => setCustomPrefix(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-1.5 font-mono text-xs uppercase text-slate-900 focus:border-[#4B0507] focus:outline-none"
-                />
-                <p className="mt-1 text-[11px] text-slate-500">
-                  If blank, generates names from Virtuoso theme words: SOLSTICE, AURORA, HELIOS, APOLLO, etc.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
-              <button
-                type="button"
-                onClick={() => setShowGenerateModal(false)}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleBulkGenerate}
-                disabled={isPending || unassignedCount === 0}
-                className="flex items-center gap-1.5 rounded-md bg-[#4B0507] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#380405] disabled:opacity-50 cursor-pointer"
-              >
-                {isPending ? (
-                  <>
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                    <span>Generating...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-3.5 w-3.5" />
-                    <span>Generate {unassignedCount} Codenames</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </section>
+      </section>
+    </div>
   );
 }

@@ -7,6 +7,7 @@ import {
   ArrowDown,
   ArrowRight,
   ArrowUp,
+  KeyRound,
   Lock,
   Plus,
   Trash2,
@@ -62,6 +63,9 @@ interface EventDetailManagerProps {
     ParticipantRecord,
     "id" | "participant_code" | "full_name" | "institution_name" | "is_active"
   >[];
+  codenameAssignmentCount?: number;
+  eventWideCodenameByEntryId?: Record<string, string>;
+  roundCodenameCountMap?: Record<string, number>;
 }
 
 export function EventDetailManager({
@@ -70,6 +74,9 @@ export function EventDetailManager({
   entries,
   availableContingents,
   availableParticipants,
+  codenameAssignmentCount = 0,
+  eventWideCodenameByEntryId = {},
+  roundCodenameCountMap = {},
 }: EventDetailManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -223,6 +230,40 @@ export function EventDetailManager({
           </dd>
         </div>
       </dl>
+
+      {/* Codenames Management Strip */}
+      <section
+        aria-label="Event codename management"
+        className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between"
+      >
+        <div className="space-y-1">
+          <h2 className="flex items-center gap-2 font-display text-base font-semibold text-slate-900">
+            <KeyRound
+              className="h-4 w-4 text-[#4B0507]"
+              aria-hidden="true"
+            />
+            <span>Entry Codenames</span>
+          </h2>
+          <p className="text-sm text-slate-600">
+            Mode:{" "}
+            <span className="font-medium text-slate-900">
+              {CODENAME_MODE_LABELS[event.codename_mode]}
+            </span>{" "}
+            ·{" "}
+            <span className="font-mono text-xs tabular-nums text-slate-700">
+              {codenameAssignmentCount} assignment
+              {codenameAssignmentCount === 1 ? "" : "s"} recorded
+            </span>
+          </p>
+        </div>
+        <Link
+          href={`/events/${event.id}/codenames`}
+          className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md bg-[#4B0507] px-4 py-2 text-sm font-medium whitespace-nowrap text-white transition-colors hover:bg-[#380305] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
+        >
+          <span>Manage Codenames</span>
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
+      </section>
 
       {/* Event Configuration Form */}
       <section
@@ -553,6 +594,17 @@ export function EventDetailManager({
                             aria-hidden="true"
                           />
                         </button>
+                        {event.codename_mode === "per_round" ? (
+                          <Link
+                            href={`/events/${event.id}/codenames?roundId=${round.id}`}
+                            className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-800 hover:border-[#4B0507] hover:text-[#4B0507]"
+                          >
+                            <KeyRound className="h-3 w-3" aria-hidden="true" />
+                            <span>
+                              Codenames ({roundCodenameCountMap[round.id] ?? 0})
+                            </span>
+                          </Link>
+                        ) : null}
                         <Link
                           href={`/events/${event.id}/rounds/${round.id}`}
                           className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-800 hover:bg-slate-50"
@@ -833,6 +885,15 @@ export function EventDetailManager({
                             Unknown subject
                           </span>
                         )}
+                        {event.codename_mode === "event_wide" &&
+                        eventWideCodenameByEntryId[entry.id] ? (
+                          <p className="mt-1 font-mono text-[11px] text-slate-600">
+                            Codename:{" "}
+                            <span className="font-semibold text-slate-800">
+                              {eventWideCodenameByEntryId[entry.id]}
+                            </span>
+                          </p>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-600">
                         {entry.entry_type === "contingent"
