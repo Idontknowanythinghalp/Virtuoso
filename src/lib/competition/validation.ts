@@ -39,12 +39,18 @@ const ATTRIBUTION_MODES: readonly RoundAttributionMode[] = [
   "panel_consolidated",
   "round_direct",
 ];
-const ROUND_STATUSES: readonly RoundStatus[] = [
+export const ROUND_STATUSES: readonly RoundStatus[] = [
   "draft",
   "ready",
   "deployed",
+  "closed",
   "completed",
   "archived",
+];
+
+export const ROUND_CREATE_STATUSES: readonly RoundStatus[] = [
+  "draft",
+  "ready",
 ];
 const ENTRY_TYPES: readonly EventEntryType[] = ["contingent", "individual"];
 const ENTRY_STATUSES: readonly EventEntryStatus[] = [
@@ -177,6 +183,7 @@ export interface ValidatedRoundInput {
   attribution_mode: RoundAttributionMode;
   status: RoundStatus;
   is_locked: boolean;
+  duration_minutes: number | null;
 }
 
 export function validateRoundInput(raw: {
@@ -187,6 +194,7 @@ export function validateRoundInput(raw: {
   attributionMode: string;
   status: string;
   isLocked: boolean;
+  durationMinutes?: string | number | null;
 }): ValidationResult<ValidatedRoundInput> {
   const roundNumber = Number(raw.roundNumber);
   if (!Number.isInteger(roundNumber) || roundNumber < 1 || roundNumber > 99) {
@@ -216,6 +224,34 @@ export function validateRoundInput(raw: {
     return { ok: false, error: "Invalid round status selected." };
   }
 
+  let durationMinutes: number | null = null;
+  const durationRaw =
+    raw.durationMinutes === null || raw.durationMinutes === undefined
+      ? ""
+      : String(raw.durationMinutes).trim();
+  if (durationRaw !== "") {
+    if (!/^\d+$/.test(durationRaw)) {
+      return {
+        ok: false,
+        error:
+          "Round duration must be a whole number between 1 and 1,440 minutes.",
+      };
+    }
+    const parsedDuration = Number(durationRaw);
+    if (
+      !Number.isInteger(parsedDuration) ||
+      parsedDuration < 1 ||
+      parsedDuration > 1440
+    ) {
+      return {
+        ok: false,
+        error:
+          "Round duration must be between 1 and 1,440 minutes.",
+      };
+    }
+    durationMinutes = parsedDuration;
+  }
+
   return {
     ok: true,
     value: {
@@ -226,6 +262,7 @@ export function validateRoundInput(raw: {
       attribution_mode: raw.attributionMode as RoundAttributionMode,
       status: raw.status as RoundStatus,
       is_locked: Boolean(raw.isLocked),
+      duration_minutes: durationMinutes,
     },
   };
 }

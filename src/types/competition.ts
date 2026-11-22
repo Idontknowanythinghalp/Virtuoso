@@ -18,8 +18,37 @@ export type RoundStatus =
   | "draft"
   | "ready"
   | "deployed"
+  | "closed"
   | "completed"
   | "archived";
+
+export type RoundReleaseCloseReason = "manual" | "expired";
+
+export type RoundReleaseEffectiveState =
+  | "draft"
+  | "ready"
+  | "live"
+  | "expired"
+  | "closed"
+  | "completed"
+  | "archived";
+
+export interface RoundReleaseSessionRecord {
+  id: string;
+  event_id: string;
+  round_id: string;
+  session_number: number;
+  duration_minutes: number;
+  started_at: string;
+  expires_at: string;
+  closed_at: string | null;
+  close_reason: RoundReleaseCloseReason | null;
+  released_by: string | null;
+  closed_by: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
 export type EventEntryType = "contingent" | "individual";
 
@@ -54,6 +83,7 @@ export interface RoundRecord {
   attribution_mode: RoundAttributionMode;
   status: RoundStatus;
   is_locked: boolean;
+  duration_minutes: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -145,7 +175,8 @@ export const ATTRIBUTION_MODE_LABELS: Record<RoundAttributionMode, string> = {
 export const ROUND_STATUS_LABELS: Record<RoundStatus, string> = {
   draft: "Draft",
   ready: "Ready",
-  deployed: "Deployed",
+  deployed: "Deployed (Live)",
+  closed: "Closed",
   completed: "Completed",
   archived: "Archived",
 };

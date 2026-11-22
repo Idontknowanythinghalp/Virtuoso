@@ -21,24 +21,38 @@ import {
   type CompetitionActionResult,
 } from "@/app/actions/competition";
 import {
+  ROUND_CREATE_STATUSES,
+} from "@/lib/competition/validation";
+import { RoundReleasePanel } from "@/components/competition/RoundReleasePanel";
+import {
   ATTRIBUTION_MODE_LABELS,
   ROUND_STATUS_LABELS,
   SCORING_METHOD_LABELS,
   type EventRecord,
   type JudgingCriterionRecord,
   type RoundRecord,
+  type RoundReleaseSessionRecord,
+  type RoundStatus,
 } from "@/types/competition";
 
 interface RoundDetailManagerProps {
-  event: Pick<EventRecord, "id" | "code" | "name">;
+  event: Pick<EventRecord, "id" | "code" | "name" | "status">;
   round: RoundRecord;
   criteria: JudgingCriterionRecord[];
+  releaseSessions: RoundReleaseSessionRecord[];
+  dbServerNowIso: string | null;
+  releaseMigrationMissing: boolean;
+  releaseLoadError: string | null;
 }
 
 export function RoundDetailManager({
   event,
   round,
   criteria,
+  releaseSessions,
+  dbServerNowIso,
+  releaseMigrationMissing,
+  releaseLoadError,
 }: RoundDetailManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -146,6 +160,15 @@ export function RoundDetailManager({
           <span>Back to {event.code} · {event.name}</span>
         </Link>
       </div>
+
+      <RoundReleasePanel
+        event={event}
+        round={round}
+        sessions={releaseSessions}
+        dbServerNowIso={dbServerNowIso}
+        releaseMigrationMissing={releaseMigrationMissing}
+        releaseLoadError={releaseLoadError}
+      />
 
       {/* Round Settings Form */}
       <section
@@ -256,18 +279,65 @@ export function RoundDetailManager({
               >
                 Status
               </label>
-              <select
-                id="round-status"
-                name="status"
-                defaultValue={round.status}
-                className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20"
+              {round.status === "deployed" ? (
+                <>
+                  <input type="hidden" name="status" value="deployed" />
+                  <input
+                    id="round-status"
+                    type="text"
+                    readOnly
+                    value={ROUND_STATUS_LABELS[round.status]}
+                    className="min-h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+                  />
+                </>
+              ) : (
+                <select
+                  id="round-status"
+                  name="status"
+                  defaultValue={round.status}
+                  className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20"
+                >
+                  {(round.status === "closed"
+                    ? (["closed", "completed", "archived"] as RoundStatus[])
+                    : ([...ROUND_CREATE_STATUSES, "completed", "archived"] as RoundStatus[])
+                  ).map((val) => (
+                    <option key={val} value={val}>
+                      {ROUND_STATUS_LABELS[val]}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label
+                htmlFor="round-duration"
+                className="block text-xs font-medium text-slate-700"
               >
-                {Object.entries(ROUND_STATUS_LABELS).map(([val, label]) => (
-                  <option key={val} value={val}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+                Duration (minutes)
+              </label>
+              <input
+                id="round-duration"
+                name="durationMinutes"
+                type="number"
+                min={1}
+                max={1440}
+                step={1}
+                readOnly={
+                  releaseSessions.length > 0 ||
+                  Boolean(releaseLoadError) ||
+                  round.status === "deployed" ||
+                  round.status === "closed"
+                }
+                defaultValue={round.duration_minutes ?? ""}
+                placeholder="Optional (1–1,440)"
+                className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm tabular-nums text-slate-900 read-only:bg-slate-50 read-only:text-slate-600 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20"
+              />
+              {releaseSessions.length > 0 ? (
+                <p className="text-[11px] text-slate-500">
+                  Locked after first release; override only when reopening.
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -289,20 +359,50 @@ export function RoundDetailManager({
           </div>
 
           <div className="flex items-start gap-2.5 rounded-md border border-slate-200 bg-slate-50 px-3.5 py-3">
-            <input
-              id="round-locked"
-              name="isLocked"
-              type="checkbox"
-              defaultChecked={round.is_locked}
-              className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#4B0507]"
-            />
-            <label htmlFor="round-locked" className="text-sm text-slate-800">
-              <span className="font-medium">Lock judging criteria structure</span>
-              <span className="block text-xs text-slate-600">
-                When locked (or once Stage 3 scores exist for this round),
-                judging criteria cannot be added, edited, reordered, or deleted.
-              </span>
-            </label>
+            {round.is_locked &&
+            (releaseSessions.length > 0 ||
+              round.status === "deployed" ||
+              round.status === "closed") ? (
+              <>
+                <input type="hidden" name="isLocked" value="true" />
+                <input
+                  id="round-locked"
+                  type="checkbox"
+                  checked
+                  disabled
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#4B0507]"
+                />
+                <label htmlFor="round-locked" className="text-sm text-slate-800">
+                  <span className="font-medium">
+                    Judging criteria structure is permanently locked
+                  </span>
+                  <span className="block text-xs text-slate-600">
+                    Criteria locking is applied automatically on first release
+                    and stays active across closures and reopenings.
+                  </span>
+                </label>
+              </>
+            ) : (
+              <>
+                <input
+                  id="round-locked"
+                  name="isLocked"
+                  type="checkbox"
+                  defaultChecked={round.is_locked}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#4B0507]"
+                />
+                <label htmlFor="round-locked" className="text-sm text-slate-800">
+                  <span className="font-medium">
+                    Lock judging criteria structure
+                  </span>
+                  <span className="block text-xs text-slate-600">
+                    When locked (or automatically upon first release, or once
+                    Stage 3 scores exist), judging criteria cannot be added,
+                    edited, reordered, or deleted.
+                  </span>
+                </label>
+              </>
+            )}
           </div>
 
           {roundState ? (

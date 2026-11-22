@@ -8,6 +8,7 @@ import {
 import { requireActiveUser } from "@/lib/auth/guards";
 import { ALL_ORGANISER_ROLES } from "@/lib/auth/policy";
 import { validateUuid } from "@/lib/competition/validation";
+import { classifyRoundReleaseLoadError } from "@/lib/competition/round-release";
 import { siteConfig } from "@/lib/site-config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type {
@@ -17,6 +18,7 @@ import type {
   EventRecord,
   ParticipantRecord,
   RoundRecord,
+  RoundReleaseSessionRecord,
 } from "@/types/competition";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +49,8 @@ export default async function EventDetailPage({
     contingentsRes,
     participantsRes,
     codenamesRes,
+    sessionsRes,
+    dbNowRes,
   ] = await Promise.all([
     supabase
       .from("events")
@@ -92,6 +96,13 @@ export default async function EventDetailPage({
       .returns<
         Pick<EntryCodenameRecord, "event_entry_id" | "round_id" | "codename">[]
       >(),
+    supabase
+      .from("round_release_sessions")
+      .select("*")
+      .eq("event_id", idCheck.value)
+      .order("session_number", { ascending: false })
+      .returns<RoundReleaseSessionRecord[]>(),
+    supabase.rpc("get_db_server_timestamp"),
   ]);
 
   if (eventRes.error || !eventRes.data) {
@@ -130,6 +141,39 @@ export default async function EventDetailPage({
     }
   }
 
+  const sessionsErrorKind = classifyRoundReleaseLoadError(sessionsRes.error);
+  const releaseMigrationMissing = sessionsErrorKind === "migration_missing";
+  const dbServerNowIso =
+    !dbNowRes.error &&
+    typeof dbNowRes.data === "string" &&
+    Number.isFinite(Date.parse(dbNowRes.data))
+      ? dbNowRes.data
+      : null;
+
+  let releaseLoadError: string | null = null;
+  if (!releaseMigrationMissing) {
+    if (sessionsErrorKind === "load_error") {
+      releaseLoadError =
+        "Unable to load round release sessions from the database.";
+    } else if (!dbServerNowIso) {
+      releaseLoadError =
+        "Unable to read authoritative database clock timestamp.";
+    }
+  }
+
+  const releaseSessions =
+    releaseMigrationMissing || sessionsErrorKind === "load_error"
+      ? []
+      : (sessionsRes.data ?? []);
+  const releaseSessionsByRoundId: Record<string, RoundReleaseSessionRecord[]> =
+    {};
+  for (const session of releaseSessions) {
+    if (!releaseSessionsByRoundId[session.round_id]) {
+      releaseSessionsByRoundId[session.round_id] = [];
+    }
+    releaseSessionsByRoundId[session.round_id].push(session);
+  }
+
   return (
     <CmsShell
       user={sessionUser}
@@ -161,6 +205,10 @@ export default async function EventDetailPage({
         codenameAssignmentCount={codenames.length}
         eventWideCodenameByEntryId={eventWideCodenameByEntryId}
         roundCodenameCountMap={roundCodenameCountMap}
+        releaseSessionsByRoundId={releaseSessionsByRoundId}
+        dbServerNowIso={dbServerNowIso}
+        releaseMigrationMissing={releaseMigrationMissing}
+        releaseLoadError={releaseLoadError}
       />
     </CmsShell>
   );

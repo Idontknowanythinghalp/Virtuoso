@@ -7,10 +7,12 @@ import { ALL_ORGANISER_ROLES } from "@/lib/auth/policy";
 import { validateUuid } from "@/lib/competition/validation";
 import { siteConfig } from "@/lib/site-config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { classifyRoundReleaseLoadError } from "@/lib/competition/round-release";
 import type {
   EventRecord,
   JudgingCriterionRecord,
   RoundRecord,
+  RoundReleaseSessionRecord,
 } from "@/types/competition";
 
 export const dynamic = "force-dynamic";
@@ -33,25 +35,34 @@ export default async function RoundDetailPage({ params }: RoundDetailPageProps) 
 
   const supabase = await createSupabaseServerClient();
 
-  const [eventRes, roundRes, criteriaRes] = await Promise.all([
-    supabase
-      .from("events")
-      .select("id, code, name")
-      .eq("id", eventCheck.value)
-      .maybeSingle<Pick<EventRecord, "id" | "code" | "name">>(),
-    supabase
-      .from("rounds")
-      .select("*")
-      .eq("id", roundCheck.value)
-      .eq("event_id", eventCheck.value)
-      .maybeSingle<RoundRecord>(),
-    supabase
-      .from("judging_criteria")
-      .select("*")
-      .eq("round_id", roundCheck.value)
-      .order("display_order", { ascending: true })
-      .returns<JudgingCriterionRecord[]>(),
-  ]);
+  const [eventRes, roundRes, criteriaRes, sessionsRes, serverNowRes] =
+    await Promise.all([
+      supabase
+        .from("events")
+        .select("id, code, name, status")
+        .eq("id", eventCheck.value)
+        .maybeSingle<Pick<EventRecord, "id" | "code" | "name" | "status">>(),
+      supabase
+        .from("rounds")
+        .select("*")
+        .eq("id", roundCheck.value)
+        .eq("event_id", eventCheck.value)
+        .maybeSingle<RoundRecord>(),
+      supabase
+        .from("judging_criteria")
+        .select("*")
+        .eq("round_id", roundCheck.value)
+        .order("display_order", { ascending: true })
+        .returns<JudgingCriterionRecord[]>(),
+      supabase
+        .from("round_release_sessions")
+        .select("*")
+        .eq("round_id", roundCheck.value)
+        .eq("event_id", eventCheck.value)
+        .order("session_number", { ascending: false })
+        .returns<RoundReleaseSessionRecord[]>(),
+      supabase.rpc("get_db_server_timestamp"),
+    ]);
 
   if (eventRes.error || !eventRes.data || roundRes.error || !roundRes.data) {
     notFound();
@@ -60,6 +71,30 @@ export default async function RoundDetailPage({ params }: RoundDetailPageProps) 
   const event = eventRes.data;
   const round = roundRes.data;
   const criteria = criteriaRes.data ?? [];
+  const sessionsErrorKind = classifyRoundReleaseLoadError(sessionsRes.error);
+  const releaseMigrationMissing = sessionsErrorKind === "migration_missing";
+  const dbServerNowIso =
+    !serverNowRes.error &&
+    typeof serverNowRes.data === "string" &&
+    Number.isFinite(Date.parse(serverNowRes.data))
+      ? serverNowRes.data
+      : null;
+
+  let releaseLoadError: string | null = null;
+  if (!releaseMigrationMissing) {
+    if (sessionsErrorKind === "load_error") {
+      releaseLoadError =
+        "Unable to load round release sessions from the database.";
+    } else if (!dbServerNowIso) {
+      releaseLoadError =
+        "Unable to read authoritative database clock timestamp.";
+    }
+  }
+
+  const releaseSessions =
+    releaseMigrationMissing || sessionsErrorKind === "load_error"
+      ? []
+      : (sessionsRes.data ?? []);
 
   return (
     <CmsShell
@@ -80,11 +115,19 @@ export default async function RoundDetailPage({ params }: RoundDetailPageProps) 
         </h1>
         <p className="max-w-3xl text-sm leading-relaxed text-slate-600 sm:text-base">
           {round.description ||
-            "Configure round evaluation settings and ordered judging criteria."}
+            "Configure round release settings, evaluation rules, and ordered judging criteria."}
         </p>
       </section>
 
-      <RoundDetailManager event={event} round={round} criteria={criteria} />
+      <RoundDetailManager
+        event={event}
+        round={round}
+        criteria={criteria}
+        releaseSessions={releaseSessions}
+        dbServerNowIso={dbServerNowIso}
+        releaseMigrationMissing={releaseMigrationMissing}
+        releaseLoadError={releaseLoadError}
+      />
     </CmsShell>
   );
 }

@@ -70,6 +70,47 @@ async function ensureAuditResult(
   return { ok: true, message: successMessage, createdId };
 }
 
+async function ensureNoLiveRoundsBeforeDeactivatingEvent(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  eventId: string,
+): Promise<string | null> {
+  const [
+    { data: openSessions, error: sessionsErr },
+    { data: dbNowRaw, error: dbNowErr },
+  ] = await Promise.all([
+    supabase
+      .from("round_release_sessions")
+      .select("id, expires_at")
+      .eq("event_id", eventId)
+      .is("closed_at", null),
+    supabase.rpc("get_db_server_timestamp"),
+  ]);
+
+  if (sessionsErr) {
+    return "Unable to verify active round release sessions before changing event status.";
+  }
+
+  if (dbNowErr || typeof dbNowRaw !== "string") {
+    return "Unable to verify authoritative database clock before changing event status.";
+  }
+
+  const dbNowMs = Date.parse(dbNowRaw);
+  if (!Number.isFinite(dbNowMs)) {
+    return "Received invalid database timestamp while verifying active round release sessions.";
+  }
+
+  const hasLiveSession = (openSessions ?? []).some((s) => {
+    const expiresMs = Date.parse((s as { expires_at: string }).expires_at);
+    return !Number.isFinite(expiresMs) || expiresMs > dbNowMs;
+  });
+
+  if (hasLiveSession) {
+    return 'Cannot change event status away from "Active" while a round has a live release session. Close active rounds first.';
+  }
+
+  return null;
+}
+
 export async function createEventAction(
   _prevState: CompetitionActionResult | null,
   formData: FormData,
@@ -198,6 +239,16 @@ export async function updateEventAction(
       return { ok: false, message: "Event not found." };
     }
 
+    if (before.status === "active" && checked.value.status !== "active") {
+      const liveCheckError = await ensureNoLiveRoundsBeforeDeactivatingEvent(
+        supabase,
+        idCheck.value,
+      );
+      if (liveCheckError) {
+        return { ok: false, message: liveCheckError };
+      }
+    }
+
     const { data: updated, error: updateError } = await supabase
       .from("events")
       .update(checked.value)
@@ -294,6 +345,16 @@ export async function updateEventStatusAction(
       return { ok: true, message: "Event status is already up to date." };
     }
 
+    if (before.status === "active" && nextStatus !== "active") {
+      const liveCheckError = await ensureNoLiveRoundsBeforeDeactivatingEvent(
+        supabase,
+        idCheck.value,
+      );
+      if (liveCheckError) {
+        return { ok: false, message: liveCheckError };
+      }
+    }
+
     const { data: updated, error: updateError } = await supabase
       .from("events")
       .update({ status: nextStatus })
@@ -371,9 +432,21 @@ export async function createRoundAction(
       ),
       status: String(formData.get("status") ?? "draft"),
       isLocked: formData.get("isLocked") === "true" || formData.get("isLocked") === "on",
+      durationMinutes: String(formData.get("durationMinutes") ?? ""),
     });
 
     if (!checked.ok) return { ok: false, message: checked.error };
+
+    if (
+      checked.value.status === "deployed" ||
+      checked.value.status === "closed"
+    ) {
+      return {
+        ok: false,
+        message:
+          'New rounds must be created as "Draft" or "Ready" and released through the Round Release controls.',
+      };
+    }
 
     const supabase = await createSupabaseServerClient();
     const { data: eventRow, error: eventError } = await supabase
@@ -423,6 +496,7 @@ export async function createRoundAction(
           attribution_mode: created.attribution_mode,
           status: created.status,
           is_locked: created.is_locked,
+          duration_minutes: created.duration_minutes,
         },
       }),
       created.id,
@@ -466,22 +540,98 @@ export async function updateRoundAction(
       attributionMode: String(formData.get("attributionMode") ?? ""),
       status: String(formData.get("status") ?? ""),
       isLocked: formData.get("isLocked") === "true" || formData.get("isLocked") === "on",
+      durationMinutes: String(formData.get("durationMinutes") ?? ""),
     });
 
     if (!checked.ok) return { ok: false, message: checked.error };
 
     const supabase = await createSupabaseServerClient();
-    const { data: before, error: loadError } = await supabase
-      .from("rounds")
-      .select("*")
-      .eq("id", roundCheck.value)
-      .eq("event_id", eventCheck.value)
-      .maybeSingle<RoundRecord>();
+    const [
+      { data: before, error: loadError },
+      { data: releaseSessions, error: sessionsErr },
+    ] = await Promise.all([
+      supabase
+        .from("rounds")
+        .select("*")
+        .eq("id", roundCheck.value)
+        .eq("event_id", eventCheck.value)
+        .maybeSingle<RoundRecord>(),
+      supabase
+        .from("round_release_sessions")
+        .select("id, closed_at")
+        .eq("round_id", roundCheck.value)
+        .eq("event_id", eventCheck.value),
+    ]);
 
     if (loadError || !before) {
       return {
         ok: false,
         message: "Round not found for the specified event.",
+      };
+    }
+
+    if (sessionsErr) {
+      return {
+        ok: false,
+        message: mapCompetitionDbError(
+          sessionsErr,
+          "Unable to verify round release history before updating round settings.",
+        ),
+      };
+    }
+
+    const hasAnySession = (releaseSessions?.length ?? 0) > 0;
+
+    if (
+      before.is_locked &&
+      !checked.value.is_locked &&
+      (hasAnySession || before.status === "deployed" || before.status === "closed")
+    ) {
+      return {
+        ok: false,
+        message:
+          "Judging criteria lock cannot be removed after a round has been released.",
+      };
+    }
+
+    if (checked.value.status !== before.status) {
+      if (
+        checked.value.status === "deployed" ||
+        checked.value.status === "closed"
+      ) {
+        return {
+          ok: false,
+          message:
+            'Release-managed statuses ("Deployed" / "Closed") can only be changed via the Round Release controls.',
+        };
+      }
+      if (before.status === "deployed") {
+        return {
+          ok: false,
+          message:
+            "Cannot change a deployed round's status directly. Close the active release session first.",
+        };
+      }
+      if (
+        before.status === "closed" &&
+        (checked.value.status === "draft" || checked.value.status === "ready")
+      ) {
+        return {
+          ok: false,
+          message:
+            "A closed round cannot revert to Draft or Ready. Use Reopen in Round Release Controls to start a new release session.",
+        };
+      }
+    }
+
+    if (
+      hasAnySession &&
+      checked.value.duration_minutes !== before.duration_minutes
+    ) {
+      return {
+        ok: false,
+        message:
+          "Configured duration cannot be changed after release history exists. Override duration only when reopening the round.",
       };
     }
 
@@ -521,6 +671,7 @@ export async function updateRoundAction(
           attribution_mode: before.attribution_mode,
           status: before.status,
           is_locked: before.is_locked,
+          duration_minutes: before.duration_minutes,
         },
         afterData: {
           round_number: updated.round_number,
@@ -529,6 +680,7 @@ export async function updateRoundAction(
           attribution_mode: updated.attribution_mode,
           status: updated.status,
           is_locked: updated.is_locked,
+          duration_minutes: updated.duration_minutes,
         },
       }),
     );

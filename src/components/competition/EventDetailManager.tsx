@@ -38,7 +38,15 @@ import {
   type EventRecord,
   type ParticipantRecord,
   type RoundRecord,
+  type RoundReleaseSessionRecord,
 } from "@/types/competition";
+import {
+  deriveRoundReleaseState,
+  EFFECTIVE_RELEASE_STATE_LABELS,
+  MAX_ROUND_DURATION_MINUTES,
+  MIN_ROUND_DURATION_MINUTES,
+} from "@/lib/competition/round-release";
+import { ROUND_CREATE_STATUSES } from "@/lib/competition/validation";
 
 export interface EventEntryView extends EventEntryRecord {
   contingent: Pick<
@@ -66,6 +74,10 @@ interface EventDetailManagerProps {
   codenameAssignmentCount?: number;
   eventWideCodenameByEntryId?: Record<string, string>;
   roundCodenameCountMap?: Record<string, number>;
+  releaseSessionsByRoundId?: Record<string, RoundReleaseSessionRecord[]>;
+  dbServerNowIso?: string | null;
+  releaseMigrationMissing?: boolean;
+  releaseLoadError?: string | null;
 }
 
 export function EventDetailManager({
@@ -77,8 +89,17 @@ export function EventDetailManager({
   codenameAssignmentCount = 0,
   eventWideCodenameByEntryId = {},
   roundCodenameCountMap = {},
+  releaseSessionsByRoundId = {},
+  dbServerNowIso = null,
+  releaseMigrationMissing = false,
+  releaseLoadError = null,
 }: EventDetailManagerProps) {
   const router = useRouter();
+  const parsedDbNowMs = dbServerNowIso ? Date.parse(dbServerNowIso) : NaN;
+  const hasClockError =
+    !releaseMigrationMissing && (!dbServerNowIso || !Number.isFinite(parsedDbNowMs));
+  const releaseStatusUnavailable =
+    releaseMigrationMissing || Boolean(releaseLoadError) || hasClockError;
   const [isPending, startTransition] = useTransition();
   const [roundFeedback, setRoundFeedback] =
     useState<CompetitionActionResult | null>(null);
@@ -489,6 +510,24 @@ export function EventDetailManager({
           </span>
         </div>
 
+        {releaseMigrationMissing ? (
+          <div
+            role="status"
+            className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+          >
+            Stage 2C migration 0007 is not applied yet. Live release status and
+            session history are unavailable until migration 0007 is applied.
+          </div>
+        ) : releaseLoadError || hasClockError ? (
+          <div
+            role="alert"
+            className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
+          >
+            {releaseLoadError ??
+              "Unable to read authoritative database clock timestamp. Round release status is temporarily unavailable."}
+          </div>
+        ) : null}
+
         {roundFeedback ? (
           <div
             role={roundFeedback.ok ? "status" : "alert"}
@@ -522,6 +561,9 @@ export function EventDetailManager({
                 <th scope="col" className="px-4 py-3">
                   Status &amp; Lock
                 </th>
+                <th scope="col" className="px-4 py-3">
+                  Duration &amp; Release
+                </th>
                 <th scope="col" className="px-4 py-3 text-right">
                   Actions
                 </th>
@@ -531,91 +573,145 @@ export function EventDetailManager({
               {rounds.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-4 py-8 text-center text-sm text-slate-500"
                   >
                     No rounds have been created for this event yet.
                   </td>
                 </tr>
               ) : (
-                rounds.map((round, index) => (
-                  <tr
-                    key={round.id}
-                    className="align-middle hover:bg-slate-50/60"
-                  >
-                    <td className="px-4 py-3 font-mono text-xs tabular-nums text-slate-700">
-                      Round {round.round_number}
-                    </td>
-                    <td className="px-4 py-3 font-medium text-slate-900">
-                      <Link
-                        href={`/events/${event.id}/rounds/${round.id}`}
-                        className="hover:text-[#4B0507] hover:underline"
-                      >
-                        {round.name}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-slate-700">
-                      {SCORING_METHOD_LABELS[round.scoring_method]}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-slate-700">
-                      {ATTRIBUTION_MODE_LABELS[round.attribution_mode]}
-                    </td>
-                    <td className="px-4 py-3 text-xs">
-                      <span className="font-medium text-slate-800">
-                        {ROUND_STATUS_LABELS[round.status]}
-                      </span>
-                      {round.is_locked ? (
-                        <span className="ml-2 inline-flex items-center gap-1 font-medium text-amber-800">
-                          <Lock className="h-3 w-3" aria-hidden="true" />
-                          Locked
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          type="button"
-                          disabled={isPending || index === 0}
-                          onClick={() => handleMoveRound(index, -1)}
-                          aria-label={`Move ${round.name} earlier`}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={isPending || index === rounds.length - 1}
-                          onClick={() => handleMoveRound(index, 1)}
-                          aria-label={`Move ${round.name} later`}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <ArrowDown
-                            className="h-3.5 w-3.5"
-                            aria-hidden="true"
-                          />
-                        </button>
-                        {event.codename_mode === "per_round" ? (
-                          <Link
-                            href={`/events/${event.id}/codenames?roundId=${round.id}`}
-                            className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-800 hover:border-[#4B0507] hover:text-[#4B0507]"
-                          >
-                            <KeyRound className="h-3 w-3" aria-hidden="true" />
-                            <span>
-                              Codenames ({roundCodenameCountMap[round.id] ?? 0})
-                            </span>
-                          </Link>
-                        ) : null}
+                rounds.map((round, index) => {
+                  const roundSessions = releaseSessionsByRoundId[round.id] ?? [];
+                  const derived =
+                    !releaseStatusUnavailable && Number.isFinite(parsedDbNowMs)
+                      ? deriveRoundReleaseState({
+                          round,
+                          eventStatus: event.status,
+                          sessions: roundSessions,
+                          dbNowMs: parsedDbNowMs,
+                        })
+                      : null;
+
+                  const releaseBadgeTone =
+                    derived === null
+                      ? releaseMigrationMissing
+                        ? "text-amber-800"
+                        : "text-red-800"
+                      : derived.effectiveState === "live"
+                        ? "text-emerald-800"
+                        : derived.effectiveState === "expired" ||
+                            derived.effectiveState === "closed"
+                          ? "text-amber-800"
+                          : derived.effectiveState === "ready"
+                            ? "text-sky-800"
+                            : "text-slate-600";
+
+                  return (
+                    <tr
+                      key={round.id}
+                      className="align-middle hover:bg-slate-50/60"
+                    >
+                      <td className="px-4 py-3 font-mono text-xs tabular-nums text-slate-700">
+                        Round {round.round_number}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-slate-900">
                         <Link
                           href={`/events/${event.id}/rounds/${round.id}`}
-                          className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-800 hover:bg-slate-50"
+                          className="hover:text-[#4B0507] hover:underline"
                         >
-                          <span>Criteria &amp; Setup</span>
-                          <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                          {round.name}
                         </Link>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-700">
+                        {SCORING_METHOD_LABELS[round.scoring_method]}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-700">
+                        {ATTRIBUTION_MODE_LABELS[round.attribution_mode]}
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        <span className="font-medium text-slate-800">
+                          {ROUND_STATUS_LABELS[round.status]}
+                        </span>
+                        {round.is_locked ? (
+                          <span className="ml-2 inline-flex items-center gap-1 font-medium text-amber-800">
+                            <Lock className="h-3 w-3" aria-hidden="true" />
+                            Locked
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        <div className="font-mono tabular-nums text-slate-800">
+                          {round.duration_minutes !== null
+                            ? `${round.duration_minutes}m`
+                            : "Duration not set"}
+                          {derived && derived.sessionCount > 0
+                            ? ` · Session #${derived.latestSession?.session_number ?? derived.sessionCount}`
+                            : ""}
+                        </div>
+                        <div className={`font-medium ${releaseBadgeTone}`}>
+                          {derived
+                            ? EFFECTIVE_RELEASE_STATE_LABELS[derived.effectiveState]
+                            : releaseMigrationMissing
+                              ? "Migration 0007 required"
+                              : "Unavailable (Load Error)"}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            disabled={isPending || index === 0}
+                            onClick={() => handleMoveRound(index, -1)}
+                            aria-label={`Move ${round.name} earlier`}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            <ArrowUp
+                              className="h-3.5 w-3.5"
+                              aria-hidden="true"
+                            />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isPending || index === rounds.length - 1}
+                            onClick={() => handleMoveRound(index, 1)}
+                            aria-label={`Move ${round.name} later`}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            <ArrowDown
+                              className="h-3.5 w-3.5"
+                              aria-hidden="true"
+                            />
+                          </button>
+                          {event.codename_mode === "per_round" ? (
+                            <Link
+                              href={`/events/${event.id}/codenames?roundId=${round.id}`}
+                              className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-800 hover:border-[#4B0507] hover:text-[#4B0507]"
+                            >
+                              <KeyRound
+                                className="h-3 w-3"
+                                aria-hidden="true"
+                              />
+                              <span>
+                                Codenames ({roundCodenameCountMap[round.id] ?? 0}
+                                )
+                              </span>
+                            </Link>
+                          ) : null}
+                          <Link
+                            href={`/events/${event.id}/rounds/${round.id}`}
+                            className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-800 hover:bg-slate-50"
+                          >
+                            <span>Criteria &amp; Release</span>
+                            <ArrowRight
+                              className="h-3 w-3"
+                              aria-hidden="true"
+                            />
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -716,7 +812,7 @@ export function EventDetailManager({
                   htmlFor="new-round-status"
                   className="block text-xs font-medium text-slate-700"
                 >
-                  Round Status
+                  Initial Status
                 </label>
                 <select
                   id="new-round-status"
@@ -724,12 +820,31 @@ export function EventDetailManager({
                   defaultValue="draft"
                   className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20"
                 >
-                  {Object.entries(ROUND_STATUS_LABELS).map(([val, label]) => (
+                  {ROUND_CREATE_STATUSES.map((val) => (
                     <option key={val} value={val}>
-                      {label}
+                      {ROUND_STATUS_LABELS[val]}
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="new-round-duration"
+                  className="block text-xs font-medium text-slate-700"
+                >
+                  Duration (Minutes, Optional)
+                </label>
+                <input
+                  id="new-round-duration"
+                  name="durationMinutes"
+                  type="number"
+                  min={MIN_ROUND_DURATION_MINUTES}
+                  max={MAX_ROUND_DURATION_MINUTES}
+                  step={1}
+                  placeholder="1–1,440 min (set before release)"
+                  className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm tabular-nums text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20"
+                />
               </div>
             </div>
 
