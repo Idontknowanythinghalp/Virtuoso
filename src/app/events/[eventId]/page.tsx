@@ -51,6 +51,7 @@ export default async function EventDetailPage({
     codenamesRes,
     sessionsRes,
     dbNowRes,
+    leaderboardCountRes,
   ] = await Promise.all([
     supabase
       .from("events")
@@ -103,6 +104,10 @@ export default async function EventDetailPage({
       .order("session_number", { ascending: false })
       .returns<RoundReleaseSessionRecord[]>(),
     supabase.rpc("get_db_server_timestamp"),
+    supabase
+      .from("leaderboard_entries")
+      .select("id", { count: "exact", head: true })
+      .eq("event_id", idCheck.value),
   ]);
 
   if (eventRes.error || !eventRes.data) {
@@ -174,6 +179,10 @@ export default async function EventDetailPage({
     releaseSessionsByRoundId[session.round_id].push(session);
   }
 
+  const leaderboardEntryCount = leaderboardCountRes.error
+    ? null
+    : (leaderboardCountRes.count ?? 0);
+
   return (
     <CmsShell
       user={sessionUser}
@@ -209,6 +218,7 @@ export default async function EventDetailPage({
         dbServerNowIso={dbServerNowIso}
         releaseMigrationMissing={releaseMigrationMissing}
         releaseLoadError={releaseLoadError}
+        leaderboardEntryCount={leaderboardEntryCount}
       />
     </CmsShell>
   );

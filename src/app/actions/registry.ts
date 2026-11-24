@@ -53,6 +53,9 @@ function mapRegistryDbError(
   if (err.code === "23503" && err.message?.includes("entry_codenames")) {
     return "This event entry already has codenames assigned and cannot be removed.";
   }
+  if (err.code === "23503" && err.message?.includes("leaderboard_entries")) {
+    return "This event entry currently appears on the event's Overall Leaderboard. Remove it from the Overall Leaderboard before deleting this event entry.";
+  }
   if (err.code === "P0001" && err.message) {
     return err.message;
   }
@@ -749,6 +752,34 @@ export async function removeEventEntryAction(
       return { ok: false, message: "Event entry not found for this event." };
     }
 
+    const { data: leaderboardRef, error: leaderboardRefError } = await supabase
+      .from("leaderboard_entries")
+      .select("id")
+      .eq("event_entry_id", entryCheck.value)
+      .eq("event_id", eventCheck.value)
+      .limit(1)
+      .maybeSingle<{ id: string }>();
+
+    const refErrorCode = (leaderboardRefError?.code ?? "").toUpperCase();
+    if (
+      leaderboardRefError &&
+      refErrorCode !== "42P01" &&
+      refErrorCode !== "PGRST205"
+    ) {
+      return {
+        ok: false,
+        message: "Unable to verify leaderboard references before removing event entry.",
+      };
+    }
+
+    if (leaderboardRef) {
+      return {
+        ok: false,
+        message:
+          "This event entry currently appears on the event's Overall Leaderboard. Remove it from the Overall Leaderboard before deleting this event entry.",
+      };
+    }
+
     const { error: deleteError } = await supabase
       .from("event_entries")
       .delete()
@@ -766,6 +797,7 @@ export async function removeEventEntryAction(
     }
 
     revalidatePath(`/events/${eventCheck.value}`);
+    revalidatePath(`/events/${eventCheck.value}/leaderboard`);
     revalidatePath("/events");
 
     return ensureRegistryAudit(

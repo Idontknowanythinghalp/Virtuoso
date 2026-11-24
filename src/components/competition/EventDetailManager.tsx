@@ -11,6 +11,7 @@ import {
   Lock,
   Plus,
   Trash2,
+  Trophy,
 } from "lucide-react";
 import {
   createRoundAction,
@@ -78,6 +79,7 @@ interface EventDetailManagerProps {
   dbServerNowIso?: string | null;
   releaseMigrationMissing?: boolean;
   releaseLoadError?: string | null;
+  leaderboardEntryCount?: number | null;
 }
 
 export function EventDetailManager({
@@ -93,6 +95,7 @@ export function EventDetailManager({
   dbServerNowIso = null,
   releaseMigrationMissing = false,
   releaseLoadError = null,
+  leaderboardEntryCount = null,
 }: EventDetailManagerProps) {
   const router = useRouter();
   const parsedDbNowMs = dbServerNowIso ? Date.parse(dbServerNowIso) : NaN;
@@ -252,39 +255,71 @@ export function EventDetailManager({
         </div>
       </dl>
 
-      {/* Codenames Management Strip */}
-      <section
-        aria-label="Event codename management"
-        className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between"
-      >
-        <div className="space-y-1">
-          <h2 className="flex items-center gap-2 font-display text-base font-semibold text-slate-900">
-            <KeyRound
-              className="h-4 w-4 text-[#4B0507]"
-              aria-hidden="true"
-            />
-            <span>Entry Codenames</span>
-          </h2>
-          <p className="text-sm text-slate-600">
-            Mode:{" "}
-            <span className="font-medium text-slate-900">
-              {CODENAME_MODE_LABELS[event.codename_mode]}
-            </span>{" "}
-            ·{" "}
-            <span className="font-mono text-xs tabular-nums text-slate-700">
-              {codenameAssignmentCount} assignment
-              {codenameAssignmentCount === 1 ? "" : "s"} recorded
-            </span>
-          </p>
-        </div>
-        <Link
-          href={`/events/${event.id}/codenames`}
-          className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md bg-[#4B0507] px-4 py-2 text-sm font-medium whitespace-nowrap text-white transition-colors hover:bg-[#380305] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
+      {/* Codenames & Overall Leaderboard Management Strips */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <section
+          aria-label="Event codename management"
+          className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between"
         >
-          <span>Manage Codenames</span>
-          <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        </Link>
-      </section>
+          <div className="space-y-1">
+            <h2 className="flex items-center gap-2 font-display text-base font-semibold text-slate-900">
+              <KeyRound
+                className="h-4 w-4 text-[#4B0507]"
+                aria-hidden="true"
+              />
+              <span>Entry Codenames</span>
+            </h2>
+            <p className="text-sm text-slate-600">
+              Mode:{" "}
+              <span className="font-medium text-slate-900">
+                {CODENAME_MODE_LABELS[event.codename_mode]}
+              </span>{" "}
+              ·{" "}
+              <span className="font-mono text-xs tabular-nums text-slate-700">
+                {codenameAssignmentCount} assignment
+                {codenameAssignmentCount === 1 ? "" : "s"} recorded
+              </span>
+            </p>
+          </div>
+          <Link
+            href={`/events/${event.id}/codenames`}
+            className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md bg-[#4B0507] px-4 py-2 text-sm font-medium whitespace-nowrap text-white transition-colors hover:bg-[#380305] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
+          >
+            <span>Manage Codenames</span>
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </section>
+
+        <section
+          aria-label="Event overall leaderboard management"
+          className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="space-y-1">
+            <h2 className="flex items-center gap-2 font-display text-base font-semibold text-slate-900">
+              <Trophy
+                className="h-4 w-4 text-[#4B0507]"
+                aria-hidden="true"
+              />
+              <span>Overall Leaderboard</span>
+            </h2>
+            <p className="text-sm text-slate-600">
+              Event standings ·{" "}
+              <span className="font-mono text-xs tabular-nums text-slate-700">
+                {leaderboardEntryCount === null
+                  ? "Migration 0008 pending"
+                  : `${leaderboardEntryCount} ${leaderboardEntryCount === 1 ? "contingent" : "contingents"} ranked`}
+              </span>
+            </p>
+          </div>
+          <Link
+            href={`/events/${event.id}/leaderboard`}
+            className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md border border-[#4B0507] bg-white px-4 py-2 text-sm font-medium whitespace-nowrap text-[#4B0507] transition-colors hover:bg-[#4B0507] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
+          >
+            <span>Manage Leaderboard</span>
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </section>
+      </div>
 
       {/* Event Configuration Form */}
       <section

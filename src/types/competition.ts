@@ -209,3 +209,42 @@ export const CODENAME_SOURCE_LABELS: Record<CodenameAssignmentSource, string> = 
   manual: "Manual",
 };
 
+export interface LeaderboardEntryRecord {
+  id: string;
+  event_id: string;
+  event_entry_id: string;
+  contingent_id: string;
+  position: number;
+  display_value: string;
+  notes: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LeaderboardEntryView extends LeaderboardEntryRecord {
+  contingent: Pick<
+    ContingentRecord,
+    "id" | "contingent_code" | "name" | "institution_name" | "is_active"
+  > | null;
+  eventEntryStatus: EventEntryStatus | null;
+}
+
+export interface ReadOnlyLeaderboardRow {
+  id: string;
+  position: number;
+  contingentId: string;
+  contingentCode: string;
+  contingentName: string;
+  institutionName: string;
+  displayValue: string;
+  updatedAt: string;
+}
+
+export interface ReadOnlyLeaderboardView {
+  eventId: string;
+  eventCode: string;
+  eventName: string;
+  entries: ReadOnlyLeaderboardRow[];
+}

@@ -9,7 +9,8 @@
     "start": "next start -p 3000 -H 0.0.0.0",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --import ./tests/ts-alias-loader.mjs --test tests/stage1b-auth.test.mjs tests/stage2a-competition.test.mjs tests/stage2b1-imports.test.mjs tests/stage2b2-imports.test.mjs tests/stage2b3-codenames.test.mjs tests/stage2c-round-release.test.mjs"
+    "test": "node --import ./tests/ts-alias-loader.mjs --test tests/stage1b-auth.test.mjs tests/stage2a-competition.test.mjs tests/stage2b1-imports.test.mjs tests/stage2b2-imports.test.mjs tests/stage2b3-codenames.test.mjs tests/stage2c-round-release.test.mjs tests/stage3a-leaderboard.test.mjs",
+    "export:zip": "node scripts/export-zip.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

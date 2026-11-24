@@ -12,10 +12,18 @@ Apply the SQL migrations to your existing `virtuoso` Supabase project in strict 
    - Creates `events`, `rounds`, `judging_criteria`, `contingents`, `participants`, and `event_entries`, transactional ordering RPCs (`reorder_event_rounds`, `reorder_round_criteria`), integrity/lock/XOR triggers, and active-organiser RLS policies.
 4. `supabase/migrations/202611170004_stage2b2_registration_imports.sql`
    - Creates `public.registration_imports` (immutable import history and per-event idempotency safeguard) and the atomic `public.execute_registration_import(...)` PostgreSQL RPC with advisory locking and field allowlists.
+5. `supabase/migrations/202611200005_stage2b3_codenames.sql`
+   - Creates `public.entry_codenames`, cross-event/round integrity constraints, RLS policies, and codename assignment/correction RPCs.
+6. `supabase/migrations/202611210006_fix_event_wide_codename_functions.sql`
+   - Corrective migration fixing `event_wide` codename audit logging in `assign_event_codenames` and `upsert_entry_codename`.
+7. `supabase/migrations/202611220007_stage2c_round_release_management.sql`
+   - Adds round duration/release columns, `public.round_release_sessions`, read-time expiry predicate (`is_round_currently_live_for_teams`), concurrent deactivation/release locking, and release/close/reopen RPCs.
+8. `supabase/migrations/202611220008_stage3a_overall_leaderboard.sql`
+   - Creates `public.leaderboard_entries`, authoritative `position` ranking index, `btrim` whitespace normalization and strict 500-char notes validation, RLS policies, and audited add/update/remove RPCs.
 
 All migrations are non-destructive (`IF NOT EXISTS` and idempotent checks) and safe to run without resetting the database.
 
-You can apply them either via the **Supabase Dashboard -> SQL Editor** (paste and run `0001` first, then `0002`) or via Supabase CLI:
+You can apply them in strict order (`0001` through `0008`) either via the **Supabase Dashboard -> SQL Editor** or via Supabase CLI:
 
 ```bash
 supabase link --project-ref <your-project-ref>

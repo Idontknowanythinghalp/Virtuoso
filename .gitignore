@@ -17,7 +17,9 @@ coverage/
 .env*
 !.env.example
 
-# System & logs
+# System, editor & export artifacts
+.aistudio/
 .DS_Store
 *.log
+*.zip
 npm-debug.log*
