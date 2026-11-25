@@ -20,10 +20,12 @@ Apply the SQL migrations to your existing `virtuoso` Supabase project in strict 
    - Adds round duration/release columns, `public.round_release_sessions`, read-time expiry predicate (`is_round_currently_live_for_teams`), concurrent deactivation/release locking, and release/close/reopen RPCs.
 8. `supabase/migrations/202611220008_stage3a_overall_leaderboard.sql`
    - Creates `public.leaderboard_entries`, authoritative `position` ranking index, `btrim` whitespace normalization and strict 500-char notes validation, RLS policies, and audited add/update/remove RPCs.
+9. `supabase/migrations/202611240009_stage3b1_team_accounts.sql`
+   - Creates `public.team_accounts` and `public.team_sessions`, strict organiser/team separation triggers, immutable session history enforcement, concurrency-safe 4-session limit (`register_team_session`, `revoke_current_team_session`), and JWT-verified session helpers (`is_active_team_session`, `current_team_contingent_id`).
 
 All migrations are non-destructive (`IF NOT EXISTS` and idempotent checks) and safe to run without resetting the database.
 
-You can apply them in strict order (`0001` through `0008`) either via the **Supabase Dashboard -> SQL Editor** or via Supabase CLI:
+You can apply them in strict order (`0001` through `0009`) either via the **Supabase Dashboard -> SQL Editor** or via Supabase CLI:
 
 ```bash
 supabase link --project-ref <your-project-ref>
