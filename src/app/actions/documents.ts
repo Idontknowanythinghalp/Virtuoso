@@ -9,24 +9,30 @@ import {
 } from "@/lib/auth/guards";
 import { SUPER_ADMIN_ONLY } from "@/lib/auth/policy";
 import {
+  createRoundDocumentReplaceIntentWithDeps,
+  createRoundDocumentUploadIntentWithDeps,
+  finalizeRoundDocumentReplacementWithDeps,
+  finalizeRoundDocumentUploadWithDeps,
   removeRoundDocumentWithDeps,
-  replaceRoundDocumentWithDeps,
   updateRoundDocumentTitleWithDeps,
-  uploadRoundDocumentWithDeps,
+  type DirectUploadRoundDocumentOpsDeps,
   type DocumentActorContext,
-  type DocumentOperationResult,
-  type RoundDocumentOpsDeps,
 } from "@/lib/documents/operations";
 import {
+  createCompetitionDocumentSignedUpload,
+  inspectUploadedCompetitionDocumentObject,
   removeCompetitionDocumentObject,
-  uploadCompetitionDocumentObject,
 } from "@/lib/documents/storage";
-import { MAX_COMPETITION_DOCUMENT_BYTES } from "@/lib/documents/validation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isAdminSupabaseConfigured } from "@/lib/supabase/server-env";
-import type { CompetitionDocumentRecord, RoundRecord } from "@/types/competition";
+import type {
+  CompetitionDocumentRecord,
+  DocumentOperationResult,
+  RoundRecord,
+  SignedUploadIntentResult,
+} from "@/types/competition";
 
-function createSupabaseDocumentOpsDeps(): RoundDocumentOpsDeps {
+function createSupabaseDocumentOpsDeps(): DirectUploadRoundDocumentOpsDeps {
   const admin = createSupabaseAdminClient();
 
   return {
@@ -72,8 +78,34 @@ function createSupabaseDocumentOpsDeps(): RoundDocumentOpsDeps {
       return { document: data ?? null, error: null };
     },
 
-    async uploadStorageObject(params) {
-      return uploadCompetitionDocumentObject(params);
+    async isStoragePathRegistered(storageObjectPath) {
+      const { data, error } = await admin
+        .from("competition_documents")
+        .select("id")
+        .eq("storage_object_path", storageObjectPath)
+        .maybeSingle<{ id: string }>();
+
+      if (error) {
+        console.error("[documents] storage path lookup error:", error.message);
+        return { exists: false, error: error.message };
+      }
+
+      return { exists: Boolean(data), error: null };
+    },
+
+    async createSignedUpload(params) {
+      return createCompetitionDocumentSignedUpload(params);
+    },
+
+    async inspectUploadedObject(params) {
+      return inspectUploadedCompetitionDocumentObject(params);
+    },
+
+    async uploadStorageObject() {
+      return {
+        ok: false,
+        error: "Server-proxied file upload is disabled; use direct signed upload.",
+      };
     },
 
     async removeStorageObject(params) {
@@ -105,6 +137,7 @@ function createSupabaseDocumentOpsDeps(): RoundDocumentOpsDeps {
         return {
           document: null,
           error: error?.message ?? "Insert returned no row",
+          isConflict: error?.code === "23505",
         };
       }
 
@@ -160,6 +193,7 @@ function createSupabaseDocumentOpsDeps(): RoundDocumentOpsDeps {
         return {
           document: null,
           error: error?.message ?? "Replace update returned no row",
+          isConflict: error?.code === "23505",
         };
       }
 
@@ -248,42 +282,61 @@ function toDocumentActor(
   };
 }
 
-async function readValidatedFileFromFormData(
-  formData: FormData,
-): Promise<
-  | {
-      ok: true;
-      fileName: string;
-      mimeType: string;
-      fileBytes: Uint8Array;
-    }
-  | { ok: false; message: string }
-> {
-  const entry = formData.get("file");
-  if (!(entry instanceof File) || entry.size === 0) {
-    return { ok: false, message: "Select a non-empty PDF file to upload." };
-  }
+export async function requestRoundDocumentUploadIntentAction(input: {
+  eventId: string;
+  roundId: string;
+  title: string;
+  fileName: string;
+  mimeType: string;
+  fileSizeBytes: number;
+}): Promise<SignedUploadIntentResult> {
+  try {
+    const actor = await requireActiveUserForAction(SUPER_ADMIN_ONLY, {
+      actionName: "round_document.upload_intent",
+    });
 
-  if (entry.size > MAX_COMPETITION_DOCUMENT_BYTES) {
+    if (!isAdminSupabaseConfigured()) {
+      return {
+        ok: false,
+        message:
+          "SUPABASE_SERVICE_ROLE_KEY is missing on the server. PDF management requires admin configuration.",
+      };
+    }
+
+    return await createRoundDocumentUploadIntentWithDeps(
+      {
+        actor: toDocumentActor(actor.profile),
+        eventId: input.eventId,
+        roundId: input.roundId,
+        title: input.title,
+        fileName: input.fileName,
+        mimeType: input.mimeType,
+        fileSizeBytes: input.fileSizeBytes,
+      },
+      createSupabaseDocumentOpsDeps(),
+    );
+  } catch (err) {
+    if (err instanceof OrganiserAuthError) {
+      return { ok: false, message: err.message };
+    }
+    console.error(
+      "[documents] requestRoundDocumentUploadIntentAction unexpected error:",
+      err instanceof Error ? err.message : err,
+    );
     return {
       ok: false,
-      message: "PDF file exceeds the maximum allowed size of 25 MB.",
+      message: "Unexpected error while preparing the round PDF upload.",
     };
   }
-
-  const arrayBuffer = await entry.arrayBuffer();
-  return {
-    ok: true,
-    fileName: entry.name,
-    mimeType: entry.type,
-    fileBytes: new Uint8Array(arrayBuffer),
-  };
 }
 
-export async function uploadRoundDocumentAction(
-  _prevState: DocumentOperationResult | null,
-  formData: FormData,
-): Promise<DocumentOperationResult> {
+export async function finalizeRoundDocumentUploadAction(input: {
+  eventId: string;
+  roundId: string;
+  title: string;
+  originalFilename: string;
+  storageObjectPath: string;
+}): Promise<DocumentOperationResult> {
   try {
     const actor = await requireActiveUserForAction(SUPER_ADMIN_ONLY, {
       actionName: "round_document.uploaded",
@@ -297,40 +350,130 @@ export async function uploadRoundDocumentAction(
       };
     }
 
-    const eventId = String(formData.get("eventId") ?? "");
-    const roundId = String(formData.get("roundId") ?? "");
-    const title = String(formData.get("title") ?? "");
-
-    const fileRes = await readValidatedFileFromFormData(formData);
-    if (!fileRes.ok) {
-      return { ok: false, message: fileRes.message };
-    }
-
-    const result = await uploadRoundDocumentWithDeps(
+    const result = await finalizeRoundDocumentUploadWithDeps(
       {
         actor: toDocumentActor(actor.profile),
-        eventId,
-        roundId,
-        title,
-        fileName: fileRes.fileName,
-        mimeType: fileRes.mimeType,
-        fileBytes: fileRes.fileBytes,
+        eventId: input.eventId,
+        roundId: input.roundId,
+        title: input.title,
+        originalFilename: input.originalFilename,
+        storageObjectPath: input.storageObjectPath,
       },
       createSupabaseDocumentOpsDeps(),
     );
 
-    return tryRevalidateRoundPath(eventId, roundId, result);
+    return tryRevalidateRoundPath(input.eventId, input.roundId, result);
   } catch (err) {
     if (err instanceof OrganiserAuthError) {
       return { ok: false, message: err.message };
     }
     console.error(
-      "[documents] uploadRoundDocumentAction unexpected error:",
+      "[documents] finalizeRoundDocumentUploadAction unexpected error:",
       err instanceof Error ? err.message : err,
     );
     return {
       ok: false,
-      message: "Unexpected error while uploading the round PDF.",
+      message: "Unexpected error while finalising the round PDF upload.",
+    };
+  }
+}
+
+export async function requestRoundDocumentReplaceIntentAction(input: {
+  eventId: string;
+  roundId: string;
+  documentId: string;
+  title: string;
+  fileName: string;
+  mimeType: string;
+  fileSizeBytes: number;
+}): Promise<SignedUploadIntentResult> {
+  try {
+    const actor = await requireActiveUserForAction(SUPER_ADMIN_ONLY, {
+      actionName: "round_document.replace_intent",
+    });
+
+    if (!isAdminSupabaseConfigured()) {
+      return {
+        ok: false,
+        message:
+          "SUPABASE_SERVICE_ROLE_KEY is missing on the server. PDF management requires admin configuration.",
+      };
+    }
+
+    return await createRoundDocumentReplaceIntentWithDeps(
+      {
+        actor: toDocumentActor(actor.profile),
+        eventId: input.eventId,
+        roundId: input.roundId,
+        documentId: input.documentId,
+        title: input.title,
+        fileName: input.fileName,
+        mimeType: input.mimeType,
+        fileSizeBytes: input.fileSizeBytes,
+      },
+      createSupabaseDocumentOpsDeps(),
+    );
+  } catch (err) {
+    if (err instanceof OrganiserAuthError) {
+      return { ok: false, message: err.message };
+    }
+    console.error(
+      "[documents] requestRoundDocumentReplaceIntentAction unexpected error:",
+      err instanceof Error ? err.message : err,
+    );
+    return {
+      ok: false,
+      message: "Unexpected error while preparing the replacement PDF upload.",
+    };
+  }
+}
+
+export async function finalizeRoundDocumentReplacementAction(input: {
+  eventId: string;
+  roundId: string;
+  documentId: string;
+  title: string;
+  originalFilename: string;
+  newStorageObjectPath: string;
+}): Promise<DocumentOperationResult> {
+  try {
+    const actor = await requireActiveUserForAction(SUPER_ADMIN_ONLY, {
+      actionName: "round_document.replaced",
+    });
+
+    if (!isAdminSupabaseConfigured()) {
+      return {
+        ok: false,
+        message:
+          "SUPABASE_SERVICE_ROLE_KEY is missing on the server. PDF management requires admin configuration.",
+      };
+    }
+
+    const result = await finalizeRoundDocumentReplacementWithDeps(
+      {
+        actor: toDocumentActor(actor.profile),
+        eventId: input.eventId,
+        roundId: input.roundId,
+        documentId: input.documentId,
+        title: input.title,
+        originalFilename: input.originalFilename,
+        newStorageObjectPath: input.newStorageObjectPath,
+      },
+      createSupabaseDocumentOpsDeps(),
+    );
+
+    return tryRevalidateRoundPath(input.eventId, input.roundId, result);
+  } catch (err) {
+    if (err instanceof OrganiserAuthError) {
+      return { ok: false, message: err.message };
+    }
+    console.error(
+      "[documents] finalizeRoundDocumentReplacementAction unexpected error:",
+      err instanceof Error ? err.message : err,
+    );
+    return {
+      ok: false,
+      message: "Unexpected error while finalising the replacement PDF.",
     };
   }
 }
@@ -379,62 +522,6 @@ export async function updateRoundDocumentTitleAction(
     return {
       ok: false,
       message: "Unexpected error while updating the document title.",
-    };
-  }
-}
-
-export async function replaceRoundDocumentAction(
-  formData: FormData,
-): Promise<DocumentOperationResult> {
-  try {
-    const actor = await requireActiveUserForAction(SUPER_ADMIN_ONLY, {
-      actionName: "round_document.replaced",
-    });
-
-    if (!isAdminSupabaseConfigured()) {
-      return {
-        ok: false,
-        message:
-          "SUPABASE_SERVICE_ROLE_KEY is missing on the server. PDF management requires admin configuration.",
-      };
-    }
-
-    const eventId = String(formData.get("eventId") ?? "");
-    const roundId = String(formData.get("roundId") ?? "");
-    const documentId = String(formData.get("documentId") ?? "");
-    const title = String(formData.get("title") ?? "");
-
-    const fileRes = await readValidatedFileFromFormData(formData);
-    if (!fileRes.ok) {
-      return { ok: false, message: fileRes.message };
-    }
-
-    const result = await replaceRoundDocumentWithDeps(
-      {
-        actor: toDocumentActor(actor.profile),
-        eventId,
-        roundId,
-        documentId,
-        title,
-        fileName: fileRes.fileName,
-        mimeType: fileRes.mimeType,
-        fileBytes: fileRes.fileBytes,
-      },
-      createSupabaseDocumentOpsDeps(),
-    );
-
-    return tryRevalidateRoundPath(eventId, roundId, result);
-  } catch (err) {
-    if (err instanceof OrganiserAuthError) {
-      return { ok: false, message: err.message };
-    }
-    console.error(
-      "[documents] replaceRoundDocumentAction unexpected error:",
-      err instanceof Error ? err.message : err,
-    );
-    return {
-      ok: false,
-      message: "Unexpected error while replacing the round PDF.",
     };
   }
 }

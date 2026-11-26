@@ -3,15 +3,13 @@ import {
   COMPETITION_DOCUMENTS_BUCKET,
 } from "@/lib/documents/validation";
 import type {
+  DirectUploadStage,
   DocumentOperationResult,
   SignedUploadIntentResult,
-} from "@/lib/documents/operations";
+} from "@/types/competition";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
-export type DirectUploadStage =
-  | "requesting_permission"
-  | "uploading_storage"
-  | "finalising";
+export type { DirectUploadStage };
 
 export interface DirectPdfUploadDeps {
   requestIntent: (params: {

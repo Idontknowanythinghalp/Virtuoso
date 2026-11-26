@@ -282,3 +282,30 @@ export interface AdminRoundDocumentItem {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface DocumentOperationResult {
+  ok: boolean;
+  message: string;
+  documentId?: string;
+  warning?: string;
+}
+
+export interface SignedUploadIntentResult {
+  ok: boolean;
+  message: string;
+  storageObjectPath?: string;
+  token?: string;
+}
+
+export type DirectUploadStage =
+  | "requesting_permission"
+  | "uploading_storage"
+  | "finalising";
+
+export interface UploadedStorageObjectInspection {
+  exists: boolean;
+  sizeBytes: number | null;
+  contentType: string | null;
+  headerBytes: Uint8Array | null;
+  error: string | null;
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import React, {
-  useActionState,
+  useEffect,
   useRef,
   useState,
   useTransition,
@@ -18,14 +18,23 @@ import {
   Upload,
 } from "lucide-react";
 import {
+  finalizeRoundDocumentReplacementAction,
+  finalizeRoundDocumentUploadAction,
   removeRoundDocumentAction,
-  replaceRoundDocumentAction,
+  requestRoundDocumentReplaceIntentAction,
+  requestRoundDocumentUploadIntentAction,
   updateRoundDocumentTitleAction,
-  uploadRoundDocumentAction,
 } from "@/app/actions/documents";
-import type { DocumentOperationResult } from "@/lib/documents/operations";
-import { formatFileSizeBytes } from "@/lib/documents/validation";
-import type { AdminRoundDocumentItem } from "@/types/competition";
+import { uploadPdfDirectToStorage } from "@/lib/documents/client-upload";
+import {
+  formatFileSizeBytes,
+  MAX_COMPETITION_DOCUMENT_BYTES,
+} from "@/lib/documents/validation";
+import type {
+  AdminRoundDocumentItem,
+  DirectUploadStage,
+  DocumentOperationResult,
+} from "@/types/competition";
 
 interface RoundDocumentsPanelProps {
   eventId: string;
@@ -34,6 +43,20 @@ interface RoundDocumentsPanelProps {
   documents: AdminRoundDocumentItem[];
   documentsMigrationMissing: boolean;
   documentsLoadError: string | null;
+}
+
+function getStageButtonLabel(
+  stage: DirectUploadStage,
+  mode: "upload" | "replace",
+): string {
+  switch (stage) {
+    case "requesting_permission":
+      return "Requesting permission...";
+    case "uploading_storage":
+      return mode === "replace" ? "Uploading replacement..." : "Uploading PDF...";
+    case "finalising":
+      return "Verifying & saving...";
+  }
 }
 
 export function RoundDocumentsPanel({
@@ -46,7 +69,16 @@ export function RoundDocumentsPanel({
 }: RoundDocumentsPanelProps) {
   const router = useRouter();
   const uploadFormRef = useRef<HTMLFormElement>(null);
+  const isMountedRef = useRef(true);
   const [isPending, startTransition] = useTransition();
+  const [uploadState, setUploadState] =
+    useState<DocumentOperationResult | null>(null);
+  const [uploadStage, setUploadStage] = useState<DirectUploadStage | null>(
+    null,
+  );
+  const [replaceStage, setReplaceStage] = useState<DirectUploadStage | null>(
+    null,
+  );
   const [actionFeedback, setActionFeedback] =
     useState<DocumentOperationResult | null>(null);
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
@@ -55,20 +87,98 @@ export function RoundDocumentsPanel({
     null,
   );
 
-  const [uploadState, uploadFormAction, uploadPending] = useActionState<
-    DocumentOperationResult | null,
-    FormData
-  >(async (prev, formData) => {
-    setActionFeedback(null);
-    const result = await uploadRoundDocumentAction(prev, formData);
-    if (result.ok) {
-      uploadFormRef.current?.reset();
-      router.refresh();
+  const isUploading = uploadStage !== null;
+  const isReplacingUpload = replaceStage !== null;
+  const isBusy = isPending || isUploading || isReplacingUpload;
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isUploading && !isReplacingUpload) {
+      return;
     }
-    return result;
-  }, null);
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [isUploading, isReplacingUpload]);
+
+  async function handleUploadSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (isBusy) return;
+
+    const formData = new FormData(event.currentTarget);
+    const title = String(formData.get("title") ?? "");
+    const rawFile = formData.get("file");
+
+    setActionFeedback(null);
+
+    if (!(rawFile instanceof File) || rawFile.size <= 0) {
+      setUploadState({
+        ok: false,
+        message: "Select a non-empty PDF file to upload.",
+      });
+      return;
+    }
+
+    if (rawFile.size > MAX_COMPETITION_DOCUMENT_BYTES) {
+      setUploadState({
+        ok: false,
+        message: "PDF file exceeds the maximum allowed size of 25 MB.",
+      });
+      return;
+    }
+
+    setUploadState(null);
+    setUploadStage("requesting_permission");
+
+    try {
+      const result = await uploadPdfDirectToStorage({
+        title,
+        file: rawFile,
+        requestIntent: (params) =>
+          requestRoundDocumentUploadIntentAction({
+            eventId,
+            roundId,
+            ...params,
+          }),
+        finalizeUpload: (params) =>
+          finalizeRoundDocumentUploadAction({
+            eventId,
+            roundId,
+            ...params,
+          }),
+        onStageChange(stage) {
+          if (isMountedRef.current) {
+            setUploadStage(stage);
+          }
+        },
+      });
+
+      if (!isMountedRef.current) return;
+      setUploadState(result);
+      if (result.ok) {
+        uploadFormRef.current?.reset();
+        router.refresh();
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setUploadStage(null);
+      }
+    }
+  }
 
   function handleRenameSubmit(formData: FormData) {
+    if (isBusy) return;
     setActionFeedback(null);
     startTransition(async () => {
       const result = await updateRoundDocumentTitleAction(formData);
@@ -80,19 +190,78 @@ export function RoundDocumentsPanel({
     });
   }
 
-  function handleReplaceSubmit(formData: FormData) {
+  async function handleReplaceSubmit(
+    event: React.FormEvent<HTMLFormElement>,
+    documentId: string,
+  ) {
+    event.preventDefault();
+    if (isBusy) return;
+
+    const formData = new FormData(event.currentTarget);
+    const title = String(formData.get("title") ?? "");
+    const rawFile = formData.get("file");
+
+    if (!(rawFile instanceof File) || rawFile.size <= 0) {
+      setActionFeedback({
+        ok: false,
+        message: "Select a non-empty replacement PDF file to upload.",
+      });
+      return;
+    }
+
+    if (rawFile.size > MAX_COMPETITION_DOCUMENT_BYTES) {
+      setActionFeedback({
+        ok: false,
+        message: "PDF file exceeds the maximum allowed size of 25 MB.",
+      });
+      return;
+    }
+
     setActionFeedback(null);
-    startTransition(async () => {
-      const result = await replaceRoundDocumentAction(formData);
+    setReplaceStage("requesting_permission");
+
+    try {
+      const result = await uploadPdfDirectToStorage({
+        title,
+        file: rawFile,
+        requestIntent: (params) =>
+          requestRoundDocumentReplaceIntentAction({
+            eventId,
+            roundId,
+            documentId,
+            ...params,
+          }),
+        finalizeUpload: (params) =>
+          finalizeRoundDocumentReplacementAction({
+            eventId,
+            roundId,
+            documentId,
+            title: params.title,
+            originalFilename: params.originalFilename,
+            newStorageObjectPath: params.storageObjectPath,
+          }),
+        onStageChange(stage) {
+          if (isMountedRef.current) {
+            setReplaceStage(stage);
+          }
+        },
+      });
+
+      if (!isMountedRef.current) return;
       setActionFeedback(result);
       if (result.ok) {
         setReplacingDocId(null);
         router.refresh();
       }
-    });
+    } finally {
+      if (isMountedRef.current) {
+        setReplaceStage(null);
+      }
+    }
   }
 
   function handleRemoveConfirm(documentId: string) {
+    if (isBusy) return;
     setActionFeedback(null);
     startTransition(async () => {
       const result = await removeRoundDocumentAction(
@@ -263,7 +432,7 @@ export function RoundDocumentsPanel({
                           <>
                             <button
                               type="button"
-                              disabled={isPending}
+                              disabled={isBusy}
                               onClick={() => handleRemoveConfirm(doc.id)}
                               className="min-h-8 rounded border border-red-300 bg-red-50 px-3 py-1 text-xs font-medium text-red-800 hover:bg-red-100 disabled:opacity-50"
                             >
@@ -271,9 +440,9 @@ export function RoundDocumentsPanel({
                             </button>
                             <button
                               type="button"
-                              disabled={isPending}
+                              disabled={isBusy}
                               onClick={() => setConfirmRemoveDocId(null)}
-                              className="min-h-8 rounded border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                              className="min-h-8 rounded border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                             >
                               Cancel
                             </button>
@@ -282,7 +451,7 @@ export function RoundDocumentsPanel({
                           <>
                             <button
                               type="button"
-                              disabled={isPending}
+                              disabled={isBusy}
                               onClick={() => {
                                 setReplacingDocId(null);
                                 setConfirmRemoveDocId(null);
@@ -298,7 +467,7 @@ export function RoundDocumentsPanel({
                             </button>
                             <button
                               type="button"
-                              disabled={isPending}
+                              disabled={isBusy}
                               onClick={() => {
                                 setEditingDocId(null);
                                 setConfirmRemoveDocId(null);
@@ -314,7 +483,7 @@ export function RoundDocumentsPanel({
                             </button>
                             <button
                               type="button"
-                              disabled={isPending}
+                              disabled={isBusy}
                               onClick={() => {
                                 setEditingDocId(null);
                                 setReplacingDocId(null);
@@ -366,15 +535,15 @@ export function RoundDocumentsPanel({
                         <div className="flex items-center justify-end gap-2">
                           <button
                             type="button"
-                            disabled={isPending}
+                            disabled={isBusy}
                             onClick={() => setEditingDocId(null)}
-                            className="min-h-8 rounded border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                            className="min-h-8 rounded border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                           >
                             Cancel
                           </button>
                           <button
                             type="submit"
-                            disabled={isPending}
+                            disabled={isBusy}
                             className="min-h-8 rounded bg-[#4B0507] px-3 py-1 text-xs font-medium text-white hover:bg-[#380305] disabled:opacity-60"
                           >
                             {isPending ? "Saving..." : "Save Title"}
@@ -385,16 +554,9 @@ export function RoundDocumentsPanel({
 
                     {isReplacing ? (
                       <form
-                        action={handleReplaceSubmit}
+                        onSubmit={(e) => handleReplaceSubmit(e, doc.id)}
                         className="rounded-md border border-slate-200 bg-slate-50 p-3 space-y-3"
                       >
-                        <input type="hidden" name="eventId" value={eventId} />
-                        <input type="hidden" name="roundId" value={roundId} />
-                        <input
-                          type="hidden"
-                          name="documentId"
-                          value={doc.id}
-                        />
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <div className="space-y-1">
                             <label
@@ -411,7 +573,8 @@ export function RoundDocumentsPanel({
                               minLength={2}
                               maxLength={160}
                               defaultValue={doc.title}
-                              className="min-h-9 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20"
+                              disabled={isReplacingUpload}
+                              className="min-h-9 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20 disabled:opacity-60"
                             />
                           </div>
                           <div className="space-y-1">
@@ -427,29 +590,32 @@ export function RoundDocumentsPanel({
                               type="file"
                               required
                               accept=".pdf,application/pdf"
-                              className="block w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 file:mr-2.5 file:rounded file:border-0 file:bg-slate-100 file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-slate-800 hover:file:bg-slate-200"
+                              disabled={isReplacingUpload}
+                              className="block w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 file:mr-2.5 file:rounded file:border-0 file:bg-slate-100 file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-slate-800 hover:file:bg-slate-200 disabled:opacity-60"
                             />
                           </div>
                         </div>
                         <p className="text-xs text-slate-500">
-                          The new PDF is uploaded and saved before the previous
-                          file is deleted from private storage.
+                          The new PDF is uploaded directly to private storage
+                          and verified before the previous file is deleted.
                         </p>
                         <div className="flex items-center justify-end gap-2">
                           <button
                             type="button"
-                            disabled={isPending}
+                            disabled={isBusy}
                             onClick={() => setReplacingDocId(null)}
-                            className="min-h-8 rounded border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                            className="min-h-8 rounded border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                           >
                             Cancel
                           </button>
                           <button
                             type="submit"
-                            disabled={isPending}
+                            disabled={isBusy}
                             className="min-h-8 rounded bg-[#4B0507] px-3 py-1 text-xs font-medium text-white hover:bg-[#380305] disabled:opacity-60"
                           >
-                            {isPending ? "Replacing..." : "Upload Replacement"}
+                            {replaceStage
+                              ? getStageButtonLabel(replaceStage, "replace")
+                              : "Upload Replacement"}
                           </button>
                         </div>
                       </form>
@@ -463,11 +629,9 @@ export function RoundDocumentsPanel({
           {/* Upload New PDF Form */}
           <form
             ref={uploadFormRef}
-            action={uploadFormAction}
+            onSubmit={handleUploadSubmit}
             className="rounded-md border border-slate-200 bg-slate-50/70 p-4 space-y-4"
           >
-            <input type="hidden" name="eventId" value={eventId} />
-            <input type="hidden" name="roundId" value={roundId} />
 
             <div>
               <h3 className="font-display text-sm font-semibold text-slate-900">
@@ -493,8 +657,9 @@ export function RoundDocumentsPanel({
                   required
                   minLength={2}
                   maxLength={160}
+                  disabled={isUploading}
                   placeholder="e.g., Round 1 Case Brief"
-                  className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20"
+                  className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20 disabled:opacity-60"
                 />
               </div>
 
@@ -511,7 +676,8 @@ export function RoundDocumentsPanel({
                   type="file"
                   required
                   accept=".pdf,application/pdf"
-                  className="block min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-slate-800 hover:file:bg-slate-200"
+                  disabled={isUploading}
+                  className="block min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-slate-800 hover:file:bg-slate-200 disabled:opacity-60"
                 />
               </div>
             </div>
@@ -547,11 +713,15 @@ export function RoundDocumentsPanel({
             <div className="flex justify-end">
               <button
                 type="submit"
-                disabled={uploadPending || isPending}
+                disabled={isBusy}
                 className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#4B0507] px-4 py-2 text-sm font-medium whitespace-nowrap text-white hover:bg-[#380305] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
               >
                 <Upload className="h-4 w-4 shrink-0" aria-hidden="true" />
-                <span>{uploadPending ? "Uploading..." : "Upload PDF"}</span>
+                <span>
+                  {uploadStage
+                    ? getStageButtonLabel(uploadStage, "upload")
+                    : "Upload PDF"}
+                </span>
               </button>
             </div>
           </form>
