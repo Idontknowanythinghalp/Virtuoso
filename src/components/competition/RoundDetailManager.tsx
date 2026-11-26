@@ -24,10 +24,12 @@ import {
   ROUND_CREATE_STATUSES,
 } from "@/lib/competition/validation";
 import { RoundReleasePanel } from "@/components/competition/RoundReleasePanel";
+import { RoundDocumentsPanel } from "@/components/competition/RoundDocumentsPanel";
 import {
   ATTRIBUTION_MODE_LABELS,
   ROUND_STATUS_LABELS,
   SCORING_METHOD_LABELS,
+  type AdminRoundDocumentItem,
   type EventRecord,
   type JudgingCriterionRecord,
   type RoundRecord,
@@ -43,6 +45,10 @@ interface RoundDetailManagerProps {
   dbServerNowIso: string | null;
   releaseMigrationMissing: boolean;
   releaseLoadError: string | null;
+  canManageDocuments: boolean;
+  documents: AdminRoundDocumentItem[];
+  documentsMigrationMissing: boolean;
+  documentsLoadError: string | null;
 }
 
 export function RoundDetailManager({
@@ -53,6 +59,10 @@ export function RoundDetailManager({
   dbServerNowIso,
   releaseMigrationMissing,
   releaseLoadError,
+  canManageDocuments,
+  documents,
+  documentsMigrationMissing,
+  documentsLoadError,
 }: RoundDetailManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -168,6 +178,15 @@ export function RoundDetailManager({
         dbServerNowIso={dbServerNowIso}
         releaseMigrationMissing={releaseMigrationMissing}
         releaseLoadError={releaseLoadError}
+      />
+
+      <RoundDocumentsPanel
+        eventId={event.id}
+        roundId={round.id}
+        canManageDocuments={canManageDocuments}
+        documents={documents}
+        documentsMigrationMissing={documentsMigrationMissing}
+        documentsLoadError={documentsLoadError}
       />
 
       {/* Round Settings Form */}

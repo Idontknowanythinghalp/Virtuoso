@@ -8,6 +8,7 @@ import { validateUuid } from "@/lib/competition/validation";
 import { siteConfig } from "@/lib/site-config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { classifyRoundReleaseLoadError } from "@/lib/competition/round-release";
+import { loadRoundDocumentsForSuperAdmin } from "@/lib/documents/read";
 import type {
   EventRecord,
   JudgingCriterionRecord,
@@ -96,6 +97,15 @@ export default async function RoundDetailPage({ params }: RoundDetailPageProps) 
       ? []
       : (sessionsRes.data ?? []);
 
+  const canManageDocuments = sessionUser.role === "super_admin";
+  const documentsResult = canManageDocuments
+    ? await loadRoundDocumentsForSuperAdmin(event.id, round.id)
+    : {
+        documents: [],
+        migrationMissing: false,
+        loadError: null,
+      };
+
   return (
     <CmsShell
       user={sessionUser}
@@ -127,6 +137,10 @@ export default async function RoundDetailPage({ params }: RoundDetailPageProps) 
         dbServerNowIso={dbServerNowIso}
         releaseMigrationMissing={releaseMigrationMissing}
         releaseLoadError={releaseLoadError}
+        canManageDocuments={canManageDocuments}
+        documents={documentsResult.documents}
+        documentsMigrationMissing={documentsResult.migrationMissing}
+        documentsLoadError={documentsResult.loadError}
       />
     </CmsShell>
   );

@@ -22,10 +22,14 @@ Apply the SQL migrations to your existing `virtuoso` Supabase project in strict 
    - Creates `public.leaderboard_entries`, authoritative `position` ranking index, `btrim` whitespace normalization and strict 500-char notes validation, RLS policies, and audited add/update/remove RPCs.
 9. `supabase/migrations/202611240009_stage3b1_team_accounts.sql`
    - Creates `public.team_accounts` and `public.team_sessions`, strict organiser/team separation triggers, immutable session history enforcement, concurrency-safe 4-session limit (`register_team_session`, `revoke_current_team_session`), and JWT-verified session helpers (`is_active_team_session`, `current_team_contingent_id`).
+10. `supabase/migrations/202611250010_stage3b3_team_account_operations.sql`
+   - Creates Super Admin team-account administration RPCs (`admin_preflight_team_account_creation`, `admin_create_team_account`, `admin_set_team_account_active`, `admin_list_team_sessions`, `admin_revoke_team_session`).
+11. `supabase/migrations/202611260011_stage43a_competition_documents.sql`
+   - Creates `public.competition_documents` (allowing multiple private PDFs per round with composite `(round_id, event_id)` foreign key, Super Admin-only RLS, and archive/lifecycle integrity) and the private `competition-documents` Storage bucket (`public = false`, 25 MiB limit, `application/pdf` MIME restriction).
 
 All migrations are non-destructive (`IF NOT EXISTS` and idempotent checks) and safe to run without resetting the database.
 
-You can apply them in strict order (`0001` through `0009`) either via the **Supabase Dashboard -> SQL Editor** or via Supabase CLI:
+You can apply them in strict order (`0001` through `0011`) either via the **Supabase Dashboard -> SQL Editor** or via Supabase CLI:
 
 ```bash
 supabase link --project-ref <your-project-ref>

@@ -248,3 +248,37 @@ export interface ReadOnlyLeaderboardView {
   eventName: string;
   entries: ReadOnlyLeaderboardRow[];
 }
+
+export type CompetitionDocumentStatus = "active" | "archived";
+
+export interface CompetitionDocumentRecord {
+  id: string;
+  event_id: string;
+  round_id: string;
+  title: string;
+  original_filename: string;
+  storage_bucket: string;
+  storage_object_path: string | null;
+  mime_type: string;
+  file_size_bytes: number;
+  status: CompetitionDocumentStatus;
+  created_by: string | null;
+  updated_by: string | null;
+  archived_by: string | null;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminRoundDocumentItem {
+  id: string;
+  eventId: string;
+  roundId: string;
+  title: string;
+  originalFilename: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  status: CompetitionDocumentStatus;
+  createdAt: string;
+  updatedAt: string;
+}

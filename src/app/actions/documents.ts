@@ -1,499 +1,484 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { isAdminSupabaseConfigured } from "@/lib/supabase/server-env";
 import { recordAuditLog } from "@/lib/audit/logger";
 import {
   OrganiserAuthError,
   requireActiveUserForAction,
 } from "@/lib/auth/guards";
-import { ALL_ORGANISER_ROLES } from "@/lib/auth/policy";
-import { validateUuid } from "@/lib/competition/validation";
+import { SUPER_ADMIN_ONLY } from "@/lib/auth/policy";
 import {
-  COMPETITION_DOCUMENTS_BUCKET,
-  getStorageProvider,
-} from "@/lib/storage";
-import type {
-  CompetitionDocumentRecord,
-  CompetitionDocumentView,
-} from "@/types/data-operations";
-import type { EventRecord, RoundRecord } from "@/types/competition";
+  removeRoundDocumentWithDeps,
+  replaceRoundDocumentWithDeps,
+  updateRoundDocumentTitleWithDeps,
+  uploadRoundDocumentWithDeps,
+  type DocumentActorContext,
+  type DocumentOperationResult,
+  type RoundDocumentOpsDeps,
+} from "@/lib/documents/operations";
+import {
+  removeCompetitionDocumentObject,
+  uploadCompetitionDocumentObject,
+} from "@/lib/documents/storage";
+import { MAX_COMPETITION_DOCUMENT_BYTES } from "@/lib/documents/validation";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { isAdminSupabaseConfigured } from "@/lib/supabase/server-env";
+import type { CompetitionDocumentRecord, RoundRecord } from "@/types/competition";
 
-const MAX_DOCUMENT_SIZE = 25 * 1024 * 1024; // 25 MB
+function createSupabaseDocumentOpsDeps(): RoundDocumentOpsDeps {
+  const admin = createSupabaseAdminClient();
 
-const ALLOWED_MIME_TYPES = new Set([
-  // Documents
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.ms-powerpoint",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  "text/plain",
-  "text/csv",
-  // Images
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  // Archives
-  "application/zip",
-  "application/x-zip-compressed",
-]);
+  return {
+    generateUuid: () => randomUUID(),
+    nowIso: () => new Date().toISOString(),
+    onError(context, detail) {
+      console.error(`[documents] ${context}:`, detail);
+    },
 
-const ALLOWED_EXTENSIONS = new Set([
-  "pdf",
-  "doc",
-  "docx",
-  "xls",
-  "xlsx",
-  "ppt",
-  "pptx",
-  "txt",
-  "csv",
-  "png",
-  "jpg",
-  "jpeg",
-  "webp",
-  "zip",
-]);
+    async findRoundForEvent(eventId, roundId) {
+      const { data, error } = await admin
+        .from("rounds")
+        .select("id, event_id, round_number, name")
+        .eq("id", roundId)
+        .eq("event_id", eventId)
+        .maybeSingle<
+          Pick<RoundRecord, "id" | "event_id" | "round_number" | "name">
+        >();
 
-function sanitizeFileName(fileName: string): string {
-  const baseName = fileName.replace(/^.*[\\/]/, "");
-  return baseName.replace(/[^a-zA-Z0-9._-]/g, "_");
+      if (error) {
+        console.error("[documents] round lookup error:", error.message);
+        return { round: null, error: error.message };
+      }
+
+      return { round: data ?? null, error: null };
+    },
+
+    async findActiveDocument(eventId, roundId, documentId) {
+      const { data, error } = await admin
+        .from("competition_documents")
+        .select("*")
+        .eq("id", documentId)
+        .eq("event_id", eventId)
+        .eq("round_id", roundId)
+        .eq("status", "active")
+        .maybeSingle<CompetitionDocumentRecord>();
+
+      if (error) {
+        console.error("[documents] document lookup error:", error.message);
+        return { document: null, error: error.message };
+      }
+
+      return { document: data ?? null, error: null };
+    },
+
+    async uploadStorageObject(params) {
+      return uploadCompetitionDocumentObject(params);
+    },
+
+    async removeStorageObject(params) {
+      return removeCompetitionDocumentObject(params);
+    },
+
+    async insertDocumentMetadata(params) {
+      const { data, error } = await admin
+        .from("competition_documents")
+        .insert({
+          id: params.id,
+          event_id: params.eventId,
+          round_id: params.roundId,
+          title: params.title,
+          original_filename: params.originalFilename,
+          storage_bucket: params.storageBucket,
+          storage_object_path: params.storageObjectPath,
+          mime_type: params.mimeType,
+          file_size_bytes: params.fileSizeBytes,
+          status: "active",
+          created_by: params.actorUserId,
+          updated_by: params.actorUserId,
+        })
+        .select("*")
+        .single<CompetitionDocumentRecord>();
+
+      if (error || !data) {
+        console.error("[documents] insert metadata error:", error?.message);
+        return {
+          document: null,
+          error: error?.message ?? "Insert returned no row",
+        };
+      }
+
+      return { document: data, error: null };
+    },
+
+    async updateDocumentTitle(params) {
+      const { data, error } = await admin
+        .from("competition_documents")
+        .update({
+          title: params.title,
+          updated_by: params.actorUserId,
+        })
+        .eq("id", params.documentId)
+        .eq("event_id", params.eventId)
+        .eq("round_id", params.roundId)
+        .eq("status", "active")
+        .select("*")
+        .maybeSingle<CompetitionDocumentRecord>();
+
+      if (error || !data) {
+        console.error("[documents] rename error:", error?.message);
+        return {
+          document: null,
+          error: error?.message ?? "Document update returned no row",
+        };
+      }
+
+      return { document: data, error: null };
+    },
+
+    async replaceDocumentMetadata(params) {
+      const { data, error } = await admin
+        .from("competition_documents")
+        .update({
+          title: params.title,
+          original_filename: params.originalFilename,
+          storage_object_path: params.newStorageObjectPath,
+          mime_type: params.mimeType,
+          file_size_bytes: params.fileSizeBytes,
+          updated_by: params.actorUserId,
+        })
+        .eq("id", params.documentId)
+        .eq("event_id", params.eventId)
+        .eq("round_id", params.roundId)
+        .eq("status", "active")
+        .eq("storage_object_path", params.expectedOldStoragePath)
+        .select("*")
+        .maybeSingle<CompetitionDocumentRecord>();
+
+      if (error || !data) {
+        console.error("[documents] replace metadata error:", error?.message);
+        return {
+          document: null,
+          error: error?.message ?? "Replace update returned no row",
+        };
+      }
+
+      return { document: data, error: null };
+    },
+
+    async archiveDocumentMetadata(params) {
+      const { data, error } = await admin
+        .from("competition_documents")
+        .update({
+          status: "archived",
+          storage_object_path: null,
+          archived_at: params.archivedAtIso,
+          archived_by: params.actorUserId,
+          updated_by: params.actorUserId,
+        })
+        .eq("id", params.documentId)
+        .eq("event_id", params.eventId)
+        .eq("round_id", params.roundId)
+        .eq("status", "active")
+        .eq("storage_object_path", params.expectedStoragePath)
+        .select("*")
+        .maybeSingle<CompetitionDocumentRecord>();
+
+      if (error || !data) {
+        console.error("[documents] archive metadata error:", error?.message);
+        return {
+          document: null,
+          error: error?.message ?? "Archive update returned no row",
+        };
+      }
+
+      return { document: data, error: null };
+    },
+
+    async recordAudit(entry) {
+      return recordAuditLog(entry);
+    },
+  };
 }
 
-export async function uploadDocumentAction(
-  formData: FormData,
-): Promise<{ ok: boolean; message: string; documentId?: string }> {
+function appendResultWarning(
+  result: DocumentOperationResult,
+  extraWarning: string,
+): DocumentOperationResult {
+  if (!result.ok) return result;
+  return {
+    ...result,
+    warning: result.warning
+      ? `${result.warning} ${extraWarning}`
+      : extraWarning,
+  };
+}
+
+function tryRevalidateRoundPath(
+  eventId: string,
+  roundId: string,
+  result: DocumentOperationResult,
+): DocumentOperationResult {
+  if (!result.ok) {
+    return result;
+  }
+
   try {
-    const actor = await requireActiveUserForAction(ALL_ORGANISER_ROLES, {
-      actionName: "document.upload",
+    revalidatePath(`/events/${eventId.trim()}/rounds/${roundId.trim()}`);
+    return result;
+  } catch (err) {
+    const detail =
+      err instanceof Error ? err.message : "Unknown revalidation error";
+    console.error("[documents] revalidatePath failed:", detail);
+    return appendResultWarning(
+      result,
+      "Page cache refresh could not be completed automatically; reload the page to confirm the updated list.",
+    );
+  }
+}
+
+function toDocumentActor(
+  profile: { id: string; email: string; role: "super_admin" | "event_coordinator"; is_active: boolean },
+): DocumentActorContext {
+  return {
+    userId: profile.id,
+    email: profile.email,
+    role: profile.role,
+    isActive: profile.is_active,
+  };
+}
+
+async function readValidatedFileFromFormData(
+  formData: FormData,
+): Promise<
+  | {
+      ok: true;
+      fileName: string;
+      mimeType: string;
+      fileBytes: Uint8Array;
+    }
+  | { ok: false; message: string }
+> {
+  const entry = formData.get("file");
+  if (!(entry instanceof File) || entry.size === 0) {
+    return { ok: false, message: "Select a non-empty PDF file to upload." };
+  }
+
+  if (entry.size > MAX_COMPETITION_DOCUMENT_BYTES) {
+    return {
+      ok: false,
+      message: "PDF file exceeds the maximum allowed size of 25 MB.",
+    };
+  }
+
+  const arrayBuffer = await entry.arrayBuffer();
+  return {
+    ok: true,
+    fileName: entry.name,
+    mimeType: entry.type,
+    fileBytes: new Uint8Array(arrayBuffer),
+  };
+}
+
+export async function uploadRoundDocumentAction(
+  _prevState: DocumentOperationResult | null,
+  formData: FormData,
+): Promise<DocumentOperationResult> {
+  try {
+    const actor = await requireActiveUserForAction(SUPER_ADMIN_ONLY, {
+      actionName: "round_document.uploaded",
     });
 
     if (!isAdminSupabaseConfigured()) {
       return {
         ok: false,
         message:
-          "Document upload requires SUPABASE_SERVICE_ROLE_KEY to be configured on the server for private storage access.",
+          "SUPABASE_SERVICE_ROLE_KEY is missing on the server. PDF management requires admin configuration.",
       };
     }
 
     const eventId = String(formData.get("eventId") ?? "");
-    const roundId = String(formData.get("roundId") ?? "") || null;
-    const title = String(formData.get("title") ?? "").trim();
-    const description = String(formData.get("description") ?? "").trim() || null;
-    const file = formData.get("file");
+    const roundId = String(formData.get("roundId") ?? "");
+    const title = String(formData.get("title") ?? "");
 
-    const eventCheck = validateUuid(eventId, "Event");
-    if (!eventCheck.ok) return { ok: false, message: eventCheck.error };
-
-    let targetRoundId: string | null = null;
-    if (roundId) {
-      const roundCheck = validateUuid(roundId, "Round");
-      if (!roundCheck.ok) return { ok: false, message: roundCheck.error };
-      targetRoundId = roundCheck.value;
+    const fileRes = await readValidatedFileFromFormData(formData);
+    if (!fileRes.ok) {
+      return { ok: false, message: fileRes.message };
     }
 
-    if (title.length < 2 || title.length > 160) {
-      return {
-        ok: false,
-        message: "Document title must be between 2 and 160 characters.",
-      };
-    }
-
-    if (!file || !(file instanceof File)) {
-      return { ok: false, message: "Please select a valid document file." };
-    }
-
-    if (file.size === 0) {
-      return { ok: false, message: "The selected file is empty (0 bytes)." };
-    }
-
-    if (file.size > MAX_DOCUMENT_SIZE) {
-      return {
-        ok: false,
-        message: `File size exceeds the 25 MB limit (${(file.size / 1024 / 1024).toFixed(1)} MB).`,
-      };
-    }
-
-    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-    if (!ALLOWED_EXTENSIONS.has(ext)) {
-      return {
-        ok: false,
-        message: `File type .${ext} is not allowed. Supported formats: PDF, Word, Excel, PowerPoint, Text, CSV, PNG, JPG, ZIP.`,
-      };
-    }
-
-    const mimeType = file.type || "application/octet-stream";
-    if (file.type && !ALLOWED_MIME_TYPES.has(file.type)) {
-      // If MIME type is explicitly given and not in allowed list, reject
-      return {
-        ok: false,
-        message: `MIME type "${file.type}" is not supported for competition documents.`,
-      };
-    }
-
-    const supabase = await createSupabaseServerClient();
-
-    // Verify Event & Round existence and relationship
-    const { data: event, error: eventError } = await supabase
-      .from("events")
-      .select("id, name, code")
-      .eq("id", eventCheck.value)
-      .maybeSingle<EventRecord>();
-
-    if (eventError || !event) {
-      return { ok: false, message: "Event not found." };
-    }
-
-    if (targetRoundId) {
-      const { data: round, error: roundError } = await supabase
-        .from("rounds")
-        .select("id, event_id, name")
-        .eq("id", targetRoundId)
-        .maybeSingle<RoundRecord>();
-
-      if (roundError || !round || round.event_id !== event.id) {
-        return {
-          ok: false,
-          message: "The specified round does not belong to this event.",
-        };
-      }
-    }
-
-    // Read buffer
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const sanitizedName = sanitizeFileName(file.name);
-    const storagePath = `events/${event.id}/${targetRoundId ?? "event_wide"}/${Date.now()}_${sanitizedName}`;
-
-    // Upload to private bucket using StorageProvider abstraction
-    const storageProvider = getStorageProvider();
-    const uploadRes = await storageProvider.uploadFile(
-      COMPETITION_DOCUMENTS_BUCKET,
-      storagePath,
-      buffer,
-      mimeType,
+    const result = await uploadRoundDocumentWithDeps(
+      {
+        actor: toDocumentActor(actor.profile),
+        eventId,
+        roundId,
+        title,
+        fileName: fileRes.fileName,
+        mimeType: fileRes.mimeType,
+        fileBytes: fileRes.fileBytes,
+      },
+      createSupabaseDocumentOpsDeps(),
     );
 
-    if (!uploadRes.ok) {
-      return {
-        ok: false,
-        message: `Storage upload failed: ${uploadRes.error}`,
-      };
-    }
-
-    // Insert metadata into competition_documents
-    const { data: docRecord, error: insertError } = await supabase
-      .from("competition_documents")
-      .insert({
-        event_id: event.id,
-        round_id: targetRoundId,
-        title,
-        description,
-        file_name: file.name,
-        file_path: uploadRes.path,
-        file_size_bytes: file.size,
-        mime_type: mimeType,
-        storage_bucket: COMPETITION_DOCUMENTS_BUCKET,
-        uploaded_by: actor.userId,
-        is_archived: false,
-      })
-      .select("id")
-      .single<{ id: string }>();
-
-    if (insertError || !docRecord) {
-      // Clean up uploaded file on DB insert failure
-      await storageProvider.deleteFile(
-        COMPETITION_DOCUMENTS_BUCKET,
-        uploadRes.path,
-      );
-      return {
-        ok: false,
-        message: `Failed to record document metadata: ${insertError?.message ?? "DB error"}`,
-      };
-    }
-
-    await recordAuditLog({
-      actorUserId: actor.userId,
-      actorEmail: actor.profile.email,
-      action: "document.uploaded",
-      entityType: "document",
-      entityId: docRecord.id,
-      metadata: {
-        eventId: event.id,
-        eventCode: event.code,
-        roundId: targetRoundId,
-        title,
-        fileName: file.name,
-        fileSizeBytes: file.size,
-      },
-    });
-
-    revalidatePath(`/events/${event.id}`);
-    if (targetRoundId) {
-      revalidatePath(`/events/${event.id}/rounds/${targetRoundId}`);
-    }
-
-    return {
-      ok: true,
-      message: `Document "${title}" successfully uploaded.`,
-      documentId: docRecord.id,
-    };
+    return tryRevalidateRoundPath(eventId, roundId, result);
   } catch (err) {
     if (err instanceof OrganiserAuthError) {
       return { ok: false, message: err.message };
     }
-    return {
-      ok: false,
-      message:
-        err instanceof Error ? err.message : "Unexpected error uploading document.",
-    };
-  }
-}
-
-export async function getDocumentSignedUrlAction(
-  eventId: string,
-  documentId: string,
-): Promise<{ ok: boolean; message?: string; signedUrl?: string }> {
-  try {
-    const actor = await requireActiveUserForAction(ALL_ORGANISER_ROLES, {
-      actionName: "document.view",
-    });
-
-    const eventCheck = validateUuid(eventId, "Event");
-    if (!eventCheck.ok) return { ok: false, message: eventCheck.error };
-
-    const docCheck = validateUuid(documentId, "Document");
-    if (!docCheck.ok) return { ok: false, message: docCheck.error };
-
-    const supabase = await createSupabaseServerClient();
-
-    // Scoped Authorization Check: Ensure document belongs to this event!
-    // Prevents accessing other events' documents through manipulated identifiers.
-    const { data: document, error: docError } = await supabase
-      .from("competition_documents")
-      .select("*")
-      .eq("id", docCheck.value)
-      .eq("event_id", eventCheck.value)
-      .maybeSingle<CompetitionDocumentRecord>();
-
-    if (docError || !document) {
-      return {
-        ok: false,
-        message: "Document not found or does not belong to this event.",
-      };
-    }
-
-    // Generate short-lived signed URL (300 seconds = 5 minutes)
-    const storageProvider = getStorageProvider();
-    const signedRes = await storageProvider.getSignedUrl(
-      document.storage_bucket,
-      document.file_path,
-      300,
+    console.error(
+      "[documents] uploadRoundDocumentAction unexpected error:",
+      err instanceof Error ? err.message : err,
     );
-
-    if (!signedRes.ok) {
-      return { ok: false, message: signedRes.error };
-    }
-
-    await recordAuditLog({
-      actorUserId: actor.userId,
-      actorEmail: actor.profile.email,
-      action: "document.viewed",
-      entityType: "document",
-      entityId: document.id,
-      metadata: {
-        eventId: document.event_id,
-        roundId: document.round_id,
-        title: document.title,
-        fileName: document.file_name,
-      },
-    });
-
-    return { ok: true, signedUrl: signedRes.url };
-  } catch (err) {
-    if (err instanceof OrganiserAuthError) {
-      return { ok: false, message: err.message };
-    }
     return {
       ok: false,
-      message:
-        err instanceof Error
-          ? err.message
-          : "Unexpected error retrieving document access URL.",
+      message: "Unexpected error while uploading the round PDF.",
     };
   }
 }
 
-export async function deleteDocumentAction(
-  eventId: string,
-  documentId: string,
-): Promise<{ ok: boolean; message: string }> {
+export async function updateRoundDocumentTitleAction(
+  formData: FormData,
+): Promise<DocumentOperationResult> {
   try {
-    const actor = await requireActiveUserForAction(ALL_ORGANISER_ROLES, {
-      actionName: "document.delete",
+    const actor = await requireActiveUserForAction(SUPER_ADMIN_ONLY, {
+      actionName: "round_document.renamed",
     });
 
     if (!isAdminSupabaseConfigured()) {
       return {
         ok: false,
         message:
-          "Document deletion requires SUPABASE_SERVICE_ROLE_KEY to be configured on the server.",
+          "SUPABASE_SERVICE_ROLE_KEY is missing on the server. PDF management requires admin configuration.",
       };
     }
 
-    const eventCheck = validateUuid(eventId, "Event");
-    if (!eventCheck.ok) return { ok: false, message: eventCheck.error };
+    const eventId = String(formData.get("eventId") ?? "");
+    const roundId = String(formData.get("roundId") ?? "");
+    const documentId = String(formData.get("documentId") ?? "");
+    const title = String(formData.get("title") ?? "");
 
-    const docCheck = validateUuid(documentId, "Document");
-    if (!docCheck.ok) return { ok: false, message: docCheck.error };
-
-    const supabase = await createSupabaseServerClient();
-
-    // Scoped Check: Verify document belongs to event
-    const { data: document, error: docError } = await supabase
-      .from("competition_documents")
-      .select("*")
-      .eq("id", docCheck.value)
-      .eq("event_id", eventCheck.value)
-      .maybeSingle<CompetitionDocumentRecord>();
-
-    if (docError || !document) {
-      return {
-        ok: false,
-        message: "Document not found or does not belong to this event.",
-      };
-    }
-
-    // Delete from storage
-    const storageProvider = getStorageProvider();
-    await storageProvider.deleteFile(
-      document.storage_bucket,
-      document.file_path,
+    const result = await updateRoundDocumentTitleWithDeps(
+      {
+        actor: toDocumentActor(actor.profile),
+        eventId,
+        roundId,
+        documentId,
+        title,
+      },
+      createSupabaseDocumentOpsDeps(),
     );
 
-    // Delete metadata row from DB
-    const { error: dbError } = await supabase
-      .from("competition_documents")
-      .delete()
-      .eq("id", document.id);
-
-    if (dbError) {
-      return {
-        ok: false,
-        message: `Failed to remove document record: ${dbError.message}`,
-      };
-    }
-
-    await recordAuditLog({
-      actorUserId: actor.userId,
-      actorEmail: actor.profile.email,
-      action: "document.deleted",
-      entityType: "document",
-      entityId: document.id,
-      metadata: {
-        eventId: document.event_id,
-        roundId: document.round_id,
-        title: document.title,
-        fileName: document.file_name,
-      },
-    });
-
-    revalidatePath(`/events/${document.event_id}`);
-    if (document.round_id) {
-      revalidatePath(
-        `/events/${document.event_id}/rounds/${document.round_id}`,
-      );
-    }
-
-    return {
-      ok: true,
-      message: `Document "${document.title}" was permanently removed.`,
-    };
+    return tryRevalidateRoundPath(eventId, roundId, result);
   } catch (err) {
     if (err instanceof OrganiserAuthError) {
       return { ok: false, message: err.message };
     }
+    console.error(
+      "[documents] updateRoundDocumentTitleAction unexpected error:",
+      err instanceof Error ? err.message : err,
+    );
     return {
       ok: false,
-      message:
-        err instanceof Error ? err.message : "Failed to delete document.",
+      message: "Unexpected error while updating the document title.",
     };
   }
 }
 
-export async function getDocumentsForEventAction(
-  eventId: string,
-  roundId?: string | null,
-): Promise<CompetitionDocumentView[]> {
+export async function replaceRoundDocumentAction(
+  formData: FormData,
+): Promise<DocumentOperationResult> {
   try {
-    await requireActiveUserForAction(ALL_ORGANISER_ROLES, {
-      actionName: "document.list",
+    const actor = await requireActiveUserForAction(SUPER_ADMIN_ONLY, {
+      actionName: "round_document.replaced",
     });
 
-    const eventCheck = validateUuid(eventId, "Event");
-    if (!eventCheck.ok) return [];
-
-    const supabase = await createSupabaseServerClient();
-
-    let query = supabase
-      .from("competition_documents")
-      .select(
-        `
-        id,
-        event_id,
-        round_id,
-        title,
-        description,
-        file_name,
-        file_path,
-        file_size_bytes,
-        mime_type,
-        storage_bucket,
-        uploaded_by,
-        is_archived,
-        created_at,
-        updated_at
-      `,
-      )
-      .eq("event_id", eventCheck.value)
-      .order("created_at", { ascending: false });
-
-    if (roundId) {
-      query = query.eq("round_id", roundId);
+    if (!isAdminSupabaseConfigured()) {
+      return {
+        ok: false,
+        message:
+          "SUPABASE_SERVICE_ROLE_KEY is missing on the server. PDF management requires admin configuration.",
+      };
     }
 
-    const { data: documents, error } = await query.returns<
-      CompetitionDocumentRecord[]
-    >();
+    const eventId = String(formData.get("eventId") ?? "");
+    const roundId = String(formData.get("roundId") ?? "");
+    const documentId = String(formData.get("documentId") ?? "");
+    const title = String(formData.get("title") ?? "");
 
-    if (error || !documents) return [];
+    const fileRes = await readValidatedFileFromFormData(formData);
+    if (!fileRes.ok) {
+      return { ok: false, message: fileRes.message };
+    }
 
-    // Optionally fetch uploader profiles
-    const uploaderIds = documents
-      .map((d) => d.uploaded_by)
-      .filter(Boolean) as string[];
+    const result = await replaceRoundDocumentWithDeps(
+      {
+        actor: toDocumentActor(actor.profile),
+        eventId,
+        roundId,
+        documentId,
+        title,
+        fileName: fileRes.fileName,
+        mimeType: fileRes.mimeType,
+        fileBytes: fileRes.fileBytes,
+      },
+      createSupabaseDocumentOpsDeps(),
+    );
 
-    const { data: profiles } =
-      uploaderIds.length > 0
-        ? await supabase
-            .from("profiles")
-            .select("id, full_name, email")
-            .in("id", uploaderIds)
-        : { data: [] };
+    return tryRevalidateRoundPath(eventId, roundId, result);
+  } catch (err) {
+    if (err instanceof OrganiserAuthError) {
+      return { ok: false, message: err.message };
+    }
+    console.error(
+      "[documents] replaceRoundDocumentAction unexpected error:",
+      err instanceof Error ? err.message : err,
+    );
+    return {
+      ok: false,
+      message: "Unexpected error while replacing the round PDF.",
+    };
+  }
+}
 
-    const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
+export async function removeRoundDocumentAction(
+  eventId: string,
+  roundId: string,
+  documentId: string,
+): Promise<DocumentOperationResult> {
+  try {
+    const actor = await requireActiveUserForAction(SUPER_ADMIN_ONLY, {
+      actionName: "round_document.removed",
+    });
 
-    return documents.map((doc) => ({
-      ...doc,
-      uploaded_by_profile: doc.uploaded_by
-        ? profileMap.get(doc.uploaded_by) ?? null
-        : null,
-    }));
-  } catch {
-    return [];
+    if (!isAdminSupabaseConfigured()) {
+      return {
+        ok: false,
+        message:
+          "SUPABASE_SERVICE_ROLE_KEY is missing on the server. PDF management requires admin configuration.",
+      };
+    }
+
+    const result = await removeRoundDocumentWithDeps(
+      {
+        actor: toDocumentActor(actor.profile),
+        eventId,
+        roundId,
+        documentId,
+      },
+      createSupabaseDocumentOpsDeps(),
+    );
+
+    return tryRevalidateRoundPath(eventId, roundId, result);
+  } catch (err) {
+    if (err instanceof OrganiserAuthError) {
+      return { ok: false, message: err.message };
+    }
+    console.error(
+      "[documents] removeRoundDocumentAction unexpected error:",
+      err instanceof Error ? err.message : err,
+    );
+    return {
+      ok: false,
+      message: "Unexpected error while removing the round PDF.",
+    };
   }
 }
