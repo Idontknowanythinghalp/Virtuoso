@@ -115,12 +115,11 @@ export interface ValidatedPdfUpload {
   fileSizeBytes: number;
 }
 
-export function validatePdfUploadInput(raw: {
+export function validatePdfUploadMetadataInput(raw: {
   title: string | null | undefined;
   fileName: string | null | undefined;
   mimeType: string | null | undefined;
   fileSizeBytes: number;
-  headerBytes: Uint8Array | ArrayBuffer;
 }): ValidationResult<ValidatedPdfUpload> {
   const titleCheck = validateDocumentTitle(raw.title);
   if (!titleCheck.ok) {
@@ -157,11 +156,6 @@ export function validatePdfUploadInput(raw: {
     };
   }
 
-  const headerCheck = validatePdfBufferHeader(raw.headerBytes);
-  if (!headerCheck.ok) {
-    return headerCheck;
-  }
-
   return {
     ok: true,
     value: {
@@ -171,6 +165,26 @@ export function validatePdfUploadInput(raw: {
       fileSizeBytes: raw.fileSizeBytes,
     },
   };
+}
+
+export function validatePdfUploadInput(raw: {
+  title: string | null | undefined;
+  fileName: string | null | undefined;
+  mimeType: string | null | undefined;
+  fileSizeBytes: number;
+  headerBytes: Uint8Array | ArrayBuffer;
+}): ValidationResult<ValidatedPdfUpload> {
+  const metadataCheck = validatePdfUploadMetadataInput(raw);
+  if (!metadataCheck.ok) {
+    return metadataCheck;
+  }
+
+  const headerCheck = validatePdfBufferHeader(raw.headerBytes);
+  if (!headerCheck.ok) {
+    return headerCheck;
+  }
+
+  return metadataCheck;
 }
 
 export function buildCompetitionDocumentStoragePath(

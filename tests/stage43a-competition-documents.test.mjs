@@ -877,7 +877,7 @@ test("Stage 4.3A (8) [Static Structural Check]: Migration enforces private Stora
   const actionMatches = actionsSource.match(
     /requireActiveUserForAction\(SUPER_ADMIN_ONLY/g,
   );
-  assert.equal(actionMatches?.length, 4);
+  assert.equal(actionMatches?.length, 6);
 
   // Client panel does not reference admin client or service role or participant viewer controls
   assert.equal(panelSource.includes("createSupabaseAdminClient"), false);

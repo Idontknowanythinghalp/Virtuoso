@@ -9,7 +9,7 @@
     "start": "next start -p 3000 -H 0.0.0.0",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --import ./tests/ts-alias-loader.mjs --test tests/stage1b-auth.test.mjs tests/stage2a-competition.test.mjs tests/stage2b1-imports.test.mjs tests/stage2b2-imports.test.mjs tests/stage2b3-codenames.test.mjs tests/stage2c-round-release.test.mjs tests/stage3a-leaderboard.test.mjs tests/stage3b1-team-accounts.test.mjs tests/stage3b2-team-login.test.mjs tests/stage3b3-team-operations.test.mjs tests/stage41-team-dashboard.test.mjs tests/stage42-team-rounds.test.mjs tests/stage43a-competition-documents.test.mjs",
+    "test": "node --import ./tests/ts-alias-loader.mjs --test tests/stage1b-auth.test.mjs tests/stage2a-competition.test.mjs tests/stage2b1-imports.test.mjs tests/stage2b2-imports.test.mjs tests/stage2b3-codenames.test.mjs tests/stage2c-round-release.test.mjs tests/stage3a-leaderboard.test.mjs tests/stage3b1-team-accounts.test.mjs tests/stage3b2-team-login.test.mjs tests/stage3b3-team-operations.test.mjs tests/stage41-team-dashboard.test.mjs tests/stage42-team-rounds.test.mjs tests/stage43a-competition-documents.test.mjs tests/stage43b-direct-uploads.test.mjs",
     "team:admin": "node --conditions=react-server --import ./tests/ts-alias-loader.mjs scripts/team-account-cli.mjs",
     "export:zip": "node scripts/export-zip.mjs"
   },
