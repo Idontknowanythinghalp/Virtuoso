@@ -4,8 +4,12 @@ import { requireActiveUser } from "@/lib/auth/guards";
 import { ALL_ORGANISER_ROLES } from "@/lib/auth/policy";
 import { validateUuid } from "@/lib/competition/validation";
 import {
+  calculateCompetitionRankings,
   classifyLeaderboardLoadError,
-  sortLeaderboardEntries,
+  haveDraftAndPublishedDiverged,
+  normalizeNumericScore,
+  sortPublishedLeaderboardRows,
+  toLeaderboardPublicationState,
   type LeaderboardLoadErrorKind,
 } from "@/lib/leaderboard/validation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -15,6 +19,10 @@ import type {
   EventRecord,
   LeaderboardEntryRecord,
   LeaderboardEntryView,
+  LeaderboardPublicationRecord,
+  LeaderboardPublicationState,
+  LeaderboardPublishedEntryRecord,
+  ReadOnlyLeaderboardRow,
 } from "@/types/competition";
 
 if (typeof window !== "undefined") {
@@ -31,12 +39,20 @@ export type OrganiserLeaderboardLoadResult =
         "id" | "code" | "name" | "entry_mode" | "status"
       >;
       entries: LeaderboardEntryView[];
+      publishedEntries: ReadOnlyLeaderboardRow[];
       eligibleContingents: Pick<
         ContingentRecord,
         "id" | "contingent_code" | "name" | "institution_name" | "is_active"
       >[];
+      publication: LeaderboardPublicationState;
+      hasUnpublishedChanges: boolean;
+      canManagePublication: boolean;
       migrationMissing: boolean;
+      publicationMigrationMissing: boolean;
+      snapshotMigrationMissing: boolean;
       loadError: string | null;
+      publicationLoadError: string | null;
+      snapshotLoadError: string | null;
     }
   | {
       ok: false;
@@ -44,18 +60,14 @@ export type OrganiserLeaderboardLoadResult =
     };
 
 /**
- * Loads overall leaderboard standings and eligible contingents for active organisers.
+ * Loads draft numeric leaderboard standings, the latest published snapshot,
+ * publication status, and eligible contingents for active organisers.
  * Uses the caller's authenticated Supabase server client under organiser RLS.
- *
- * Note on participant/team leaderboard reads:
- * The team-facing leaderboard read path is intentionally deferred until Team Portal
- * authentication (organiser-created shared team accounts with one POC and up to four
- * device sessions, mapped to verified contingents/event entries) is implemented.
  */
 export async function getOrganiserEventLeaderboard(
   eventId: string,
 ): Promise<OrganiserLeaderboardLoadResult> {
-  await requireActiveUser(ALL_ORGANISER_ROLES, {
+  const { sessionUser } = await requireActiveUser(ALL_ORGANISER_ROLES, {
     routeLabel: "/events/[eventId]/leaderboard",
   });
 
@@ -66,49 +78,67 @@ export async function getOrganiserEventLeaderboard(
 
   const supabase = await createSupabaseServerClient();
 
-  const [eventRes, eventEntriesRes, contingentsRes, leaderboardRes] =
-    await Promise.all([
-      supabase
-        .from("events")
-        .select("id, code, name, entry_mode, status")
-        .eq("id", eventCheck.value)
-        .maybeSingle<
-          Pick<EventRecord, "id" | "code" | "name" | "entry_mode" | "status">
-        >(),
-      supabase
-        .from("event_entries")
-        .select("id, event_id, entry_type, contingent_id, status")
-        .eq("event_id", eventCheck.value)
-        .eq("entry_type", "contingent")
-        .returns<
-          Pick<
-            EventEntryRecord,
-            "id" | "event_id" | "entry_type" | "contingent_id" | "status"
-          >[]
-        >(),
-      supabase
-        .from("contingents")
-        .select("id, contingent_code, name, institution_name, is_active")
-        .order("contingent_code", { ascending: true })
-        .returns<
-          Pick<
-            ContingentRecord,
-            | "id"
-            | "contingent_code"
-            | "name"
-            | "institution_name"
-            | "is_active"
-          >[]
-        >(),
-      supabase
-        .from("leaderboard_entries")
-        .select("*")
-        .eq("event_id", eventCheck.value)
-        .order("position", { ascending: true })
-        .order("created_at", { ascending: true })
-        .order("id", { ascending: true })
-        .returns<LeaderboardEntryRecord[]>(),
-    ]);
+  const [
+    eventRes,
+    eventEntriesRes,
+    contingentsRes,
+    leaderboardRes,
+    publicationRes,
+    publishedSnapshotRes,
+  ] = await Promise.all([
+    supabase
+      .from("events")
+      .select("id, code, name, entry_mode, status")
+      .eq("id", eventCheck.value)
+      .maybeSingle<
+        Pick<EventRecord, "id" | "code" | "name" | "entry_mode" | "status">
+      >(),
+    supabase
+      .from("event_entries")
+      .select("id, event_id, entry_type, contingent_id, status")
+      .eq("event_id", eventCheck.value)
+      .eq("entry_type", "contingent")
+      .returns<
+        Pick<
+          EventEntryRecord,
+          "id" | "event_id" | "entry_type" | "contingent_id" | "status"
+        >[]
+      >(),
+    supabase
+      .from("contingents")
+      .select("id, contingent_code, name, institution_name, is_active")
+      .order("contingent_code", { ascending: true })
+      .returns<
+        Pick<
+          ContingentRecord,
+          | "id"
+          | "contingent_code"
+          | "name"
+          | "institution_name"
+          | "is_active"
+        >[]
+      >(),
+    supabase
+      .from("leaderboard_entries")
+      .select("*")
+      .eq("event_id", eventCheck.value)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .returns<LeaderboardEntryRecord[]>(),
+    supabase
+      .from("leaderboard_publications")
+      .select("*")
+      .eq("event_id", eventCheck.value)
+      .maybeSingle<LeaderboardPublicationRecord>(),
+    supabase
+      .from("leaderboard_published_entries")
+      .select("*")
+      .eq("event_id", eventCheck.value)
+      .order("rank", { ascending: true, nullsFirst: false })
+      .order("score", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: true })
+      .returns<LeaderboardPublishedEntryRecord[]>(),
+  ]);
 
   if (eventRes.error || !eventRes.data) {
     return { ok: false, reason: "not_found" };
@@ -118,6 +148,15 @@ export async function getOrganiserEventLeaderboard(
     classifyLeaderboardLoadError(leaderboardRes.error);
   const migrationMissing = leaderboardErrorKind === "migration_missing";
 
+  const publicationErrorKind: LeaderboardLoadErrorKind =
+    classifyLeaderboardLoadError(publicationRes.error);
+  const publicationMigrationMissing =
+    publicationErrorKind === "migration_missing";
+
+  const snapshotErrorKind: LeaderboardLoadErrorKind =
+    classifyLeaderboardLoadError(publishedSnapshotRes.error);
+  const snapshotMigrationMissing = snapshotErrorKind === "migration_missing";
+
   let loadError: string | null = null;
   if (eventEntriesRes.error || contingentsRes.error) {
     loadError =
@@ -126,6 +165,21 @@ export async function getOrganiserEventLeaderboard(
     loadError =
       "Unable to load leaderboard entries from Supabase. Verify permissions and refresh.";
   }
+
+  const publicationLoadError =
+    !publicationMigrationMissing && publicationErrorKind === "load_error"
+      ? "Unable to load leaderboard publication status from Supabase. Verify permissions and refresh."
+      : null;
+
+  const snapshotLoadError =
+    !snapshotMigrationMissing && snapshotErrorKind === "load_error"
+      ? "Unable to load published leaderboard snapshot from Supabase. Verify permissions and refresh."
+      : null;
+
+  const publication =
+    publicationMigrationMissing || publicationErrorKind === "load_error"
+      ? toLeaderboardPublicationState(null)
+      : toLeaderboardPublicationState(publicationRes.data);
 
   const contingentById = new Map(
     (contingentsRes.data ?? []).map((c) => [c.id, c]),
@@ -142,20 +196,70 @@ export async function getOrganiserEventLeaderboard(
     }
   }
 
-  const rawLeaderboardRows =
+  const rawDraftRows =
     migrationMissing || leaderboardErrorKind === "load_error"
       ? []
-      : sortLeaderboardEntries(leaderboardRes.data ?? []);
+      : (leaderboardRes.data ?? []).map((row) => ({
+          ...row,
+          score: normalizeNumericScore(row.score),
+          contingent: contingentById.get(row.contingent_id) ?? null,
+          eventEntryStatus:
+            entryStatusByContingentId.get(row.contingent_id) ?? null,
+        }));
 
-  const entries: LeaderboardEntryView[] = rawLeaderboardRows.map((row) => ({
-    ...row,
-    contingent: contingentById.get(row.contingent_id) ?? null,
-    eventEntryStatus:
-      entryStatusByContingentId.get(row.contingent_id) ?? null,
-  }));
+  const entries: LeaderboardEntryView[] =
+    calculateCompetitionRankings(rawDraftRows);
+
+  const rawPublishedRows =
+    snapshotMigrationMissing || snapshotErrorKind === "load_error"
+      ? []
+      : (publishedSnapshotRes.data ?? []).map((row) => ({
+          ...row,
+          score: normalizeNumericScore(row.score),
+          contingent: contingentById.get(row.contingent_id) ?? null,
+        }));
+
+  const publishedEntries: ReadOnlyLeaderboardRow[] =
+    sortPublishedLeaderboardRows(
+      rawPublishedRows.map((row) => ({
+        id: row.id,
+        rank: row.rank ?? null,
+        score: row.score,
+        displayLabel: row.display_label ?? null,
+        contingentId: row.contingent_id,
+        contingentCode: row.contingent?.contingent_code ?? "—",
+        contingentName: row.contingent?.name ?? "Contingent",
+        institutionName: row.contingent?.institution_name ?? "—",
+        updatedAt: row.updated_at,
+        created_at: row.created_at,
+      })),
+    ).map((item) => ({
+      id: item.id,
+      rank: item.rank,
+      score: item.score,
+      displayLabel: item.displayLabel,
+      contingentId: item.contingentId,
+      contingentCode: item.contingentCode,
+      contingentName: item.contingentName,
+      institutionName: item.institutionName,
+      updatedAt: item.updatedAt,
+    }));
+
+  const hasUnpublishedChanges =
+    !migrationMissing &&
+    !publicationMigrationMissing &&
+    !snapshotMigrationMissing &&
+    !loadError &&
+    !publicationLoadError &&
+    !snapshotLoadError &&
+    haveDraftAndPublishedDiverged({
+      isPublished: publication.isPublished,
+      draftEntries: entries,
+      publishedEntries: rawPublishedRows,
+    });
 
   const onLeaderboardContingentIds = new Set(
-    rawLeaderboardRows.map((row) => row.contingent_id),
+    rawDraftRows.map((row) => row.contingent_id),
   );
 
   const eligibleContingents: Pick<
@@ -185,8 +289,16 @@ export async function getOrganiserEventLeaderboard(
     ok: true,
     event: eventRes.data,
     entries,
+    publishedEntries,
     eligibleContingents,
+    publication,
+    hasUnpublishedChanges,
+    canManagePublication: sessionUser.role === "super_admin",
     migrationMissing,
+    publicationMigrationMissing,
+    snapshotMigrationMissing,
     loadError,
+    publicationLoadError,
+    snapshotLoadError,
   };
 }

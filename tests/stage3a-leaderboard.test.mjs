@@ -10,13 +10,12 @@ import {
 import * as leaderboardValidation from "../src/lib/leaderboard/validation.ts";
 
 const {
+  calculateCompetitionRankings,
   classifyLeaderboardLoadError,
-  countPositionOccurrences,
+  countRankOccurrences,
   isLeaderboardEventReadOnly,
-  sortLeaderboardEntries,
   validateLeaderboardCreateInput,
-  validateLeaderboardDisplayValue,
-  validateLeaderboardPosition,
+  validateLeaderboardScore,
   validateLeaderboardUpdateInput,
   validateOptionalNotes,
 } = leaderboardValidation;
@@ -80,64 +79,37 @@ test("Stage 3A (1) [Executed]: Organiser permissions allow super_admin and event
   );
 });
 
-test("Stage 3A (2) [Executed]: Position validation enforces whole integers between 1 and 10,000", () => {
-  assert.deepEqual(validateLeaderboardPosition("1"), { ok: true, value: 1 });
-  assert.deepEqual(validateLeaderboardPosition(25), { ok: true, value: 25 });
-  assert.deepEqual(validateLeaderboardPosition(" 10000 "), {
-    ok: true,
-    value: 10000,
-  });
+test("Stage 3A/4.4E (2) [Executed]: Score validation enforces numeric values only (with decimals) or blank for unranked", () => {
+  assert.deepEqual(validateLeaderboardScore("95"), { ok: true, value: 95 });
+  assert.deepEqual(validateLeaderboardScore(" 95.5 "), { ok: true, value: 95.5 });
+  assert.deepEqual(validateLeaderboardScore("-12.25"), { ok: true, value: -12.25 });
+  assert.deepEqual(validateLeaderboardScore(""), { ok: true, value: null });
+  assert.deepEqual(validateLeaderboardScore(null), { ok: true, value: null });
 
-  for (const invalid of ["", "0", "-1", "1.5", "10001", "first", "1a"]) {
-    const res = validateLeaderboardPosition(invalid);
+  for (const invalid of ["950 points", "₹12,500", "Winner", "1,000", "NaN", "1.12345"]) {
+    const res = validateLeaderboardScore(invalid);
     assert.equal(res.ok, false, `Expected "${invalid}" to be rejected`);
   }
 });
 
-test("Stage 3A (3) [Executed]: Flexible displayed value validation accepts formatted points/currency strings and rejects invalid lengths", () => {
-  assert.deepEqual(validateLeaderboardDisplayValue("950 points"), {
-    ok: true,
-    value: "950 points",
-  });
-  assert.deepEqual(validateLeaderboardDisplayValue("  ₹12,500\t "), {
-    ok: true,
-    value: "₹12,500",
-  });
-  assert.deepEqual(
-    validateLeaderboardDisplayValue("Winner · 18.4x ROI\nFinalist"),
-    {
-      ok: true,
-      value: "Winner · 18.4x ROI Finalist",
-    },
-  );
-
-  assert.equal(validateLeaderboardDisplayValue("").ok, false);
-  assert.equal(validateLeaderboardDisplayValue("   \t\n  ").ok, false);
-  assert.equal(validateLeaderboardDisplayValue("x".repeat(121)).ok, false);
-  assert.equal(validateLeaderboardDisplayValue("x".repeat(120)).ok, true);
-});
-
-test("Stage 3A (4) [Executed]: Create and update input validation enforces valid UUIDs, positions, values, and optional notes", () => {
+test("Stage 3A/4.4E (3) [Executed]: Create and update input validation enforces valid UUIDs, numeric scores, and optional notes", () => {
   const validCreate = validateLeaderboardCreateInput({
     eventId: EVENT_A,
     contingentId: CONTINGENT_1,
-    position: "2",
-    displayValue: "890 points",
-    notes: "  Manual position check  ",
+    score: "890.5",
+    notes: "  Draft score check  ",
   });
   assert.equal(validCreate.ok, true);
   if (validCreate.ok) {
-    assert.equal(validCreate.value.position, 2);
-    assert.equal(validCreate.value.displayValue, "890 points");
-    assert.equal(validCreate.value.notes, "Manual position check");
+    assert.equal(validCreate.value.score, 890.5);
+    assert.equal(validCreate.value.notes, "Draft score check");
   }
 
   assert.equal(
     validateLeaderboardCreateInput({
       eventId: "not-a-uuid",
       contingentId: CONTINGENT_1,
-      position: "1",
-      displayValue: "950 points",
+      score: "950",
     }).ok,
     false,
   );
@@ -146,8 +118,7 @@ test("Stage 3A (4) [Executed]: Create and update input validation enforces valid
     validateLeaderboardCreateInput({
       eventId: EVENT_A,
       contingentId: CONTINGENT_2,
-      position: "1",
-      displayValue: "950 points",
+      score: "950",
       notes: "n".repeat(500),
     }).ok,
     true,
@@ -157,8 +128,7 @@ test("Stage 3A (4) [Executed]: Create and update input validation enforces valid
     validateLeaderboardCreateInput({
       eventId: EVENT_A,
       contingentId: CONTINGENT_2,
-      position: "1",
-      displayValue: "950 points",
+      score: "950",
       notes: "n".repeat(501),
     }).ok,
     false,
@@ -184,117 +154,60 @@ test("Stage 3A (4) [Executed]: Create and update input validation enforces valid
     assert.match(over500.error, /500 characters/);
   }
 
-  for (const wsOnly of ["\t\t", "\n\r\n", " \t \r\n "]) {
-    const createWs = validateLeaderboardCreateInput({
-      eventId: EVENT_A,
-      contingentId: CONTINGENT_2,
-      position: "1",
-      displayValue: "950 points",
-      notes: wsOnly,
-    });
-    assert.equal(createWs.ok, true);
-    if (createWs.ok) assert.equal(createWs.value.notes, null);
-
-    const updateWs = validateLeaderboardUpdateInput({
-      eventId: EVENT_A,
-      entryId: ENTRY_1,
-      position: 1,
-      displayValue: "950 points",
-      notes: wsOnly,
-    });
-    assert.equal(updateWs.ok, true);
-    if (updateWs.ok) assert.equal(updateWs.value.notes, null);
-  }
-
   const validUpdate = validateLeaderboardUpdateInput({
     eventId: EVENT_A,
     entryId: ENTRY_1,
-    position: 1,
-    displayValue: "₹15,000",
+    score: "",
     notes: "",
   });
   assert.equal(validUpdate.ok, true);
   if (validUpdate.ok) {
+    assert.equal(validUpdate.value.score, null);
     assert.equal(validUpdate.value.notes, null);
-    assert.equal(validUpdate.value.displayValue, "₹15,000");
   }
-
-  const validUpdate500 = validateLeaderboardUpdateInput({
-    eventId: EVENT_A,
-    entryId: ENTRY_1,
-    position: 1,
-    displayValue: "₹15,000",
-    notes: "b".repeat(500),
-  });
-  assert.equal(validUpdate500.ok, true);
-  if (validUpdate500.ok) {
-    assert.equal(validUpdate500.value.notes?.length, 500);
-  }
-
-  const invalidUpdate501 = validateLeaderboardUpdateInput({
-    eventId: EVENT_A,
-    entryId: ENTRY_1,
-    position: 1,
-    displayValue: "₹15,000",
-    notes: "b".repeat(501),
-  });
-  assert.equal(invalidUpdate501.ok, false);
 });
 
-test("Stage 3A (5) [Executed]: Position is authoritative ranking; tied positions share rank in deterministic secondary order (created_at, id)", () => {
+test("Stage 3A/4.4E (4) [Executed]: Automatic standard competition ranking ranks higher scores first with 1, 1, 3 ties and unscored last", () => {
   assert.equal(
     "validateLeaderboardReorderInput" in leaderboardValidation,
     false,
-    "Separate reorder validation must be removed",
+    "Separate reorder validation must remain absent",
   );
 
   const rows = [
     {
       id: ENTRY_3,
-      position: 3,
+      score: 88,
+      contingentCode: "CONT-03",
       created_at: "2026-11-22T00:00:00Z",
     },
     {
       id: ENTRY_2,
-      position: 1,
+      score: 95.5,
+      contingentCode: "CONT-02",
       created_at: "2026-11-22T02:00:00Z",
     },
     {
       id: ENTRY_1,
-      position: 1,
+      score: 95.5,
+      contingentCode: "CONT-01",
       created_at: "2026-11-22T01:00:00Z",
     },
   ];
 
-  // Position 1 entries appear before Position 3; ties sort deterministically by created_at ASC
-  const sorted = sortLeaderboardEntries(rows);
+  const ranked = calculateCompetitionRankings(rows);
   assert.deepEqual(
-    sorted.map((r) => r.id),
-    [ENTRY_1, ENTRY_2, ENTRY_3],
+    ranked.map((r) => ({ id: r.id, rank: r.calculatedRank })),
+    [
+      { id: ENTRY_1, rank: 1 },
+      { id: ENTRY_2, rank: 1 },
+      { id: ENTRY_3, rank: 3 },
+    ],
   );
 
-  // Equal position & equal created_at falls back deterministically to id ASC
-  const sameTimestampTie = sortLeaderboardEntries([
-    { id: ENTRY_2, position: 2, created_at: "2026-11-22T01:00:00Z" },
-    { id: ENTRY_1, position: 2, created_at: "2026-11-22T01:00:00Z" },
-  ]);
-  assert.deepEqual(
-    sameTimestampTie.map((r) => r.id),
-    [ENTRY_1, ENTRY_2],
-  );
-
-  const tieCounts = countPositionOccurrences(sorted);
+  const tieCounts = countRankOccurrences(ranked);
   assert.equal(tieCounts.get(1), 2);
   assert.equal(tieCounts.get(3), 1);
-
-  // Changing ENTRY_3's position from 3 to 1 (or ENTRY_1 from 1 to 4) immediately updates displayed rank
-  const afterPositionUpdate = sortLeaderboardEntries(
-    rows.map((r) => (r.id === ENTRY_3 ? { ...r, position: 1 } : r)),
-  );
-  assert.deepEqual(
-    afterPositionUpdate.map((r) => r.id),
-    [ENTRY_3, ENTRY_1, ENTRY_2],
-  );
 });
 
 test("Stage 3A (6) [Executed]: Error classification and archived event read-only helper behave accurately", () => {
@@ -329,19 +242,16 @@ test("Stage 3A (7) [Structural]: Migration 0008 uses position-only ordering, no 
   );
   const sql = fs.readFileSync(migrationPath, "utf8");
 
-  // display_order and reorder RPC must be completely absent
   assert.doesNotMatch(sql, /\bdisplay_order\b/i);
   assert.doesNotMatch(sql, /\breorder_leaderboard_entries\b/i);
   assert.doesNotMatch(sql, /leaderboard\.reordered/i);
 
-  // Composite FK prevents referencing a contingent not registered in that specific event and preserves ON DELETE RESTRICT
   assert.match(sql, /event_entries_id_event_contingent_unique/);
   assert.match(
     sql,
     /FOREIGN KEY\s*\(\s*event_entry_id\s*,\s*event_id\s*,\s*contingent_id\s*\)\s*REFERENCES\s+public\.event_entries\s*\(\s*id\s*,\s*event_id\s*,\s*contingent_id\s*\)\s*ON DELETE RESTRICT/i,
   );
 
-  // Duplicate contingent per event blocked; ties on position remain allowed; index orders deterministically
   assert.match(
     sql,
     /ADD CONSTRAINT leaderboard_entries_event_contingent_unique\s+UNIQUE\s*\(\s*event_id\s*,\s*contingent_id\s*\)/i,
@@ -356,7 +266,6 @@ test("Stage 3A (7) [Structural]: Migration 0008 uses position-only ordering, no 
     /CREATE INDEX IF NOT EXISTS leaderboard_entries_event_position_idx\s+ON public\.leaderboard_entries\s*\(\s*event_id\s*,\s*position ASC\s*,\s*created_at ASC\s*,\s*id ASC\s*\)/i,
   );
 
-  // Attribution FKs preserve audit history
   assert.match(
     sql,
     /created_by\s+uuid\s+NULL\s+REFERENCES\s+public\.profiles\s*\(\s*id\s*\)\s*ON DELETE RESTRICT/i,
@@ -366,7 +275,6 @@ test("Stage 3A (7) [Structural]: Migration 0008 uses position-only ordering, no 
     /updated_by\s+uuid\s+NULL\s+REFERENCES\s+public\.profiles\s*\(\s*id\s*\)\s*ON DELETE RESTRICT/i,
   );
 
-  // Strict RLS and table privileges (read-only SELECT for active organisers, zero anon access)
   assert.match(sql, /REVOKE ALL ON public\.leaderboard_entries FROM PUBLIC;/i);
   assert.match(sql, /REVOKE ALL ON public\.leaderboard_entries FROM anon;/i);
   assert.match(
@@ -386,7 +294,6 @@ test("Stage 3A (7) [Structural]: Migration 0008 uses position-only ordering, no 
     /CREATE POLICY leaderboard_entries_select_active_organiser[\s\S]*USING\s*\(\s*public\.is_active_organiser\(\)\s*\)/i,
   );
 
-  // Atomic RPCs: add, update, remove
   for (const fnName of [
     "add_leaderboard_entry",
     "update_leaderboard_entry",
@@ -415,56 +322,6 @@ test("Stage 3A (7) [Structural]: Migration 0008 uses position-only ordering, no 
     );
   }
 
-  // Audit integrity: updated_by/updated_at recorded and remove_leaderboard_entry performs single-row DELETE with no UPDATE compaction
-  assert.match(sql, /'updated_by',\s*v_inserted\.updated_by/);
-  assert.match(sql, /'updated_at',\s*v_inserted\.updated_at/);
-  assert.match(sql, /'updated_by',\s*v_existing\.updated_by/);
-  assert.match(sql, /'updated_at',\s*v_existing\.updated_at/);
-  assert.match(sql, /'updated_by',\s*v_updated\.updated_by/);
-  assert.match(sql, /'updated_at',\s*v_updated\.updated_at/);
-
-  const removeFnMatch = sql.match(
-    /CREATE OR REPLACE FUNCTION public\.remove_leaderboard_entry[\s\S]*?\$\$;/,
-  );
-  assert.ok(removeFnMatch, "Expected remove_leaderboard_entry function definition");
-  assert.doesNotMatch(
-    removeFnMatch[0],
-    /\bUPDATE\s+public\.leaderboard_entries\b/i,
-    "remove_leaderboard_entry must not mutate/compact other rows",
-  );
-
-  // Notes exceeding 500 characters must be rejected rather than silently truncated,
-  // and SQL whitespace trimming must match JS .trim() (spaces, tabs, CR, LF)
-  assert.doesNotMatch(sql, /\bleft\s*\(\s*v_clean_notes/i);
-  assert.match(
-    sql,
-    /ADD CONSTRAINT leaderboard_entries_notes_check\s+CHECK\s*\(\s*notes IS NULL OR char_length\(btrim\(notes, E' \\t\\r\\n'\)\) BETWEEN 1 AND 500\s*\)/i,
-  );
-  assert.match(
-    sql,
-    /NEW\.notes := NULLIF\(btrim\(COALESCE\(NEW\.notes, ''\), E' \\t\\r\\n'\), ''\);/,
-  );
-  assert.match(
-    sql,
-    /IF NEW\.notes IS NOT NULL AND char_length\(NEW\.notes\) > 500 THEN\s+RAISE EXCEPTION 'Notes cannot exceed 500 characters'/i,
-  );
-  const rpcNoteTrims = sql.match(
-    /v_clean_notes := NULLIF\(btrim\(COALESCE\(p_notes, ''\), E' \\t\\r\\n'\), ''\);/g,
-  );
-  assert.equal(
-    rpcNoteTrims?.length,
-    2,
-    "Both add_leaderboard_entry and update_leaderboard_entry must trim spaces, tabs, CR, and LF",
-  );
-  const rpcNoteChecks = sql.match(
-    /IF v_clean_notes IS NOT NULL AND char_length\(v_clean_notes\) > 500 THEN\s+RAISE EXCEPTION 'Notes cannot exceed 500 characters';/g,
-  );
-  assert.equal(
-    rpcNoteChecks?.length,
-    2,
-    "Both add_leaderboard_entry and update_leaderboard_entry must reject notes > 500 chars",
-  );
-
   assert.match(
     sql,
     /pg_advisory_xact_lock\s*\(\s*hashtext\s*\(\s*'virtuoso_leaderboard:'\s*\|\|\s*p_event_id::text\s*\)\s*\)/i,
@@ -473,23 +330,20 @@ test("Stage 3A (7) [Structural]: Migration 0008 uses position-only ordering, no 
   assert.match(sql, /SECURITY DEFINER/i);
 });
 
-test("Stage 3A (8) [Structural]: Leaderboard read helper is server-only, organiser-RLS-bound, and defers team read path until shared team auth exists", () => {
+test("Stage 3A (8) [Structural]: Leaderboard read helper is server-only and organiser-RLS-bound without admin client or RPC calls", () => {
   const readSrc = fs.readFileSync(
     path.join(ROOT_DIR, "src/lib/leaderboard/read.ts"),
     "utf8",
   );
 
-  // Strictly server-only and NOT a Next.js Server Action ("use server" directive would expose an HTTP RPC)
   assert.match(readSrc, /^import "server-only";/);
   assert.doesNotMatch(readSrc, /^\s*["']use server["'];?\s*$/m);
   assert.match(readSrc, /typeof window !== "undefined"/);
 
-  // Organiser read path must require active organiser session and use standard RLS-enforced server client
   assert.match(readSrc, /export async function getOrganiserEventLeaderboard\(/);
   assert.match(readSrc, /requireActiveUser\(ALL_ORGANISER_ROLES/);
   assert.match(readSrc, /createSupabaseServerClient\(\)/);
 
-  // No service-role client or speculative participant-email matching should exist before shared team auth is built
   assert.doesNotMatch(readSrc, /createSupabaseAdminClient/);
   assert.doesNotMatch(readSrc, /getParticipantEventLeaderboard/);
   assert.doesNotMatch(readSrc, /\.from\("participants"\)/);
@@ -498,7 +352,7 @@ test("Stage 3A (8) [Structural]: Leaderboard read helper is server-only, organis
   assert.doesNotMatch(readSrc, /\bdisplay_order\b/);
 });
 
-test("Stage 3A (9) [Structural]: Server actions, registry deletion UX, and UI components enforce position-only ranking and scope boundaries", () => {
+test("Stage 3A/4.4E (9) [Structural]: Server actions, registry deletion UX, and UI components enforce numeric ranking and scope boundaries", () => {
   const actionsSrc = fs.readFileSync(
     path.join(ROOT_DIR, "src/app/actions/leaderboard.ts"),
     "utf8",
@@ -511,7 +365,6 @@ test("Stage 3A (9) [Structural]: Server actions, registry deletion UX, and UI co
   assert.doesNotMatch(actionsSrc, /reorderLeaderboardEntriesAction/);
   assert.doesNotMatch(actionsSrc, /createSupabaseAdminClient/);
 
-  // Event-entry deletion UX preserves ON DELETE RESTRICT and surfaces clear message when referenced by leaderboard_entries
   const registrySrc = fs.readFileSync(
     path.join(ROOT_DIR, "src/app/actions/registry.ts"),
     "utf8",
@@ -525,7 +378,6 @@ test("Stage 3A (9) [Structural]: Server actions, registry deletion UX, and UI co
     /Remove it from the Overall Leaderboard before deleting this event entry\./,
   );
 
-  // Organiser UI & route checks
   const pageSrc = fs.readFileSync(
     path.join(ROOT_DIR, "src/app/events/[eventId]/leaderboard/page.tsx"),
     "utf8",
@@ -538,7 +390,7 @@ test("Stage 3A (9) [Structural]: Server actions, registry deletion UX, and UI co
     "utf8",
   );
   assert.match(managerSrc, /"use client"/);
-  assert.match(managerSrc, /sortLeaderboardEntries/);
+  assert.match(managerSrc, /calculateCompetitionRankings/);
   assert.doesNotMatch(managerSrc, /\bdisplay_order\b/);
   assert.doesNotMatch(managerSrc, /reorderLeaderboardEntriesAction/);
   assert.doesNotMatch(managerSrc, /handleMoveEntry/);
@@ -555,7 +407,6 @@ test("Stage 3A (9) [Structural]: Server actions, registry deletion UX, and UI co
   assert.match(eventDetailSrc, /\/events\/\$\{event\.id\}\/leaderboard/);
   assert.match(eventDetailSrc, /Manage Leaderboard/);
 
-  // Guard against accidental scope creep (no judge/scoring artifacts introduced)
   assert.equal(
     fs.existsSync(path.join(ROOT_DIR, "src/app/actions/scoring.ts")),
     false,

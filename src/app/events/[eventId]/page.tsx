@@ -16,6 +16,7 @@ import type {
   EntryCodenameRecord,
   EventEntryRecord,
   EventRecord,
+  LeaderboardPublicationRecord,
   ParticipantRecord,
   RoundRecord,
   RoundReleaseSessionRecord,
@@ -52,6 +53,7 @@ export default async function EventDetailPage({
     sessionsRes,
     dbNowRes,
     leaderboardCountRes,
+    leaderboardPublicationRes,
   ] = await Promise.all([
     supabase
       .from("events")
@@ -108,6 +110,11 @@ export default async function EventDetailPage({
       .from("leaderboard_entries")
       .select("id", { count: "exact", head: true })
       .eq("event_id", idCheck.value),
+    supabase
+      .from("leaderboard_publications")
+      .select("is_published")
+      .eq("event_id", idCheck.value)
+      .maybeSingle<Pick<LeaderboardPublicationRecord, "is_published">>(),
   ]);
 
   if (eventRes.error || !eventRes.data) {
@@ -183,6 +190,10 @@ export default async function EventDetailPage({
     ? null
     : (leaderboardCountRes.count ?? 0);
 
+  const leaderboardIsPublished = leaderboardPublicationRes.error
+    ? null
+    : leaderboardPublicationRes.data?.is_published === true;
+
   return (
     <CmsShell
       user={sessionUser}
@@ -219,6 +230,7 @@ export default async function EventDetailPage({
         releaseMigrationMissing={releaseMigrationMissing}
         releaseLoadError={releaseLoadError}
         leaderboardEntryCount={leaderboardEntryCount}
+        leaderboardIsPublished={leaderboardIsPublished}
       />
     </CmsShell>
   );

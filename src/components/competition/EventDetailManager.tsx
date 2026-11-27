@@ -80,6 +80,7 @@ interface EventDetailManagerProps {
   releaseMigrationMissing?: boolean;
   releaseLoadError?: string | null;
   leaderboardEntryCount?: number | null;
+  leaderboardIsPublished?: boolean | null;
 }
 
 export function EventDetailManager({
@@ -96,6 +97,7 @@ export function EventDetailManager({
   releaseMigrationMissing = false,
   releaseLoadError = null,
   leaderboardEntryCount = null,
+  leaderboardIsPublished = null,
 }: EventDetailManagerProps) {
   const router = useRouter();
   const parsedDbNowMs = dbServerNowIso ? Date.parse(dbServerNowIso) : NaN;
@@ -309,6 +311,21 @@ export function EventDetailManager({
                   ? "Migration 0008 pending"
                   : `${leaderboardEntryCount} ${leaderboardEntryCount === 1 ? "contingent" : "contingents"} ranked`}
               </span>
+              {leaderboardIsPublished !== null ? (
+                <>
+                  {" "}
+                  ·{" "}
+                  <span
+                    className={`font-medium ${
+                      leaderboardIsPublished
+                        ? "text-emerald-700"
+                        : "text-slate-600"
+                    }`}
+                  >
+                    {leaderboardIsPublished ? "Published" : "Unpublished"}
+                  </span>
+                </>
+              ) : null}
             </p>
           </div>
           <Link

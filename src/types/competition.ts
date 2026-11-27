@@ -214,8 +214,9 @@ export interface LeaderboardEntryRecord {
   event_id: string;
   event_entry_id: string;
   contingent_id: string;
-  position: number;
-  display_value: string;
+  position: number | null;
+  display_value: string | null;
+  score: number | null;
   notes: string | null;
   created_by: string | null;
   updated_by: string | null;
@@ -224,6 +225,7 @@ export interface LeaderboardEntryRecord {
 }
 
 export interface LeaderboardEntryView extends LeaderboardEntryRecord {
+  calculatedRank: number | null;
   contingent: Pick<
     ContingentRecord,
     "id" | "contingent_code" | "name" | "institution_name" | "is_active"
@@ -231,22 +233,47 @@ export interface LeaderboardEntryView extends LeaderboardEntryRecord {
   eventEntryStatus: EventEntryStatus | null;
 }
 
+export interface LeaderboardPublishedEntryRecord {
+  id: string;
+  event_id: string;
+  contingent_id: string;
+  rank: number | null;
+  score: number | null;
+  display_label: string | null;
+  published_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LeaderboardPublicationRecord {
+  event_id: string;
+  is_published: boolean;
+  published_at: string | null;
+  published_by: string | null;
+  unpublished_at: string | null;
+  unpublished_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LeaderboardPublicationState {
+  isPublished: boolean;
+  publishedAt: string | null;
+  publishedBy: string | null;
+  unpublishedAt: string | null;
+  unpublishedBy: string | null;
+}
+
 export interface ReadOnlyLeaderboardRow {
   id: string;
-  position: number;
+  rank: number | null;
+  score: number | null;
+  displayLabel: string | null;
   contingentId: string;
   contingentCode: string;
   contingentName: string;
   institutionName: string;
-  displayValue: string;
   updatedAt: string;
-}
-
-export interface ReadOnlyLeaderboardView {
-  eventId: string;
-  eventCode: string;
-  eventName: string;
-  entries: ReadOnlyLeaderboardRow[];
 }
 
 export type CompetitionDocumentStatus = "active" | "archived";

@@ -48,18 +48,26 @@ export default async function EventLeaderboardPage({
           Overall Leaderboard
         </h1>
         <p className="max-w-3xl text-sm leading-relaxed text-slate-600 sm:text-base">
-          Maintain overall event standings for registered contingents,
-          including manual positions, tied ranks, and flexible score or result
-          values.
+          Maintain draft numeric scores for registered contingents with
+          automatic standard competition rankings, then publish a snapshot when
+          ready for participants.
         </p>
       </section>
 
       <LeaderboardManager
         event={loaded.event}
         entries={loaded.entries}
+        publishedEntries={loaded.publishedEntries}
         eligibleContingents={loaded.eligibleContingents}
+        publication={loaded.publication}
+        hasUnpublishedChanges={loaded.hasUnpublishedChanges}
+        canManagePublication={loaded.canManagePublication}
         migrationMissing={loaded.migrationMissing}
+        publicationMigrationMissing={loaded.publicationMigrationMissing}
+        snapshotMigrationMissing={loaded.snapshotMigrationMissing}
         loadError={loaded.loadError}
+        publicationLoadError={loaded.publicationLoadError}
+        snapshotLoadError={loaded.snapshotLoadError}
       />
     </CmsShell>
   );
