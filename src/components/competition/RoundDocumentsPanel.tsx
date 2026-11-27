@@ -25,6 +25,7 @@ import {
   requestRoundDocumentUploadIntentAction,
   updateRoundDocumentTitleAction,
 } from "@/app/actions/documents";
+import { formatIstTimestamp } from "@/lib/date-time";
 import { uploadPdfDirectToStorage } from "@/lib/documents/client-upload";
 import {
   formatFileSizeBytes,
@@ -336,7 +337,7 @@ export function RoundDocumentsPanel({
             aria-hidden="true"
           />
           <span>
-            Stage 4.3A database migration{" "}
+            Round document database migration{" "}
             <span className="font-mono text-xs">
               202611260011_stage43a_competition_documents.sql
             </span>{" "}
@@ -422,7 +423,7 @@ export function RoundDocumentsPanel({
                           </p>
                           <p className="text-xs text-slate-500">
                             {formatFileSizeBytes(doc.fileSizeBytes)} · Updated{" "}
-                            {new Date(doc.updatedAt).toLocaleString()}
+                            {formatIstTimestamp(doc.updatedAt)}
                           </p>
                         </div>
                       </div>
@@ -434,7 +435,7 @@ export function RoundDocumentsPanel({
                               type="button"
                               disabled={isBusy}
                               onClick={() => handleRemoveConfirm(doc.id)}
-                              className="min-h-8 rounded border border-red-300 bg-red-50 px-3 py-1 text-xs font-medium text-red-800 hover:bg-red-100 disabled:opacity-50"
+                              className="min-h-8 rounded border border-red-300 bg-red-50 px-3 py-1 text-xs font-medium text-red-800 hover:bg-red-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                             >
                               {isPending ? "Removing..." : "Confirm Remove"}
                             </button>
@@ -442,7 +443,7 @@ export function RoundDocumentsPanel({
                               type="button"
                               disabled={isBusy}
                               onClick={() => setConfirmRemoveDocId(null)}
-                              className="min-h-8 rounded border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                              className="min-h-8 rounded border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                             >
                               Cancel
                             </button>
@@ -457,7 +458,7 @@ export function RoundDocumentsPanel({
                                 setConfirmRemoveDocId(null);
                                 setEditingDocId(isEditing ? null : doc.id);
                               }}
-                              className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                              className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                             >
                               <Edit3
                                 className="h-3.5 w-3.5"
@@ -473,7 +474,7 @@ export function RoundDocumentsPanel({
                                 setConfirmRemoveDocId(null);
                                 setReplacingDocId(isReplacing ? null : doc.id);
                               }}
-                              className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                              className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                             >
                               <RefreshCw
                                 className="h-3.5 w-3.5"
@@ -489,7 +490,7 @@ export function RoundDocumentsPanel({
                                 setReplacingDocId(null);
                                 setConfirmRemoveDocId(doc.id);
                               }}
-                              className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-red-50 hover:text-red-800 disabled:opacity-50"
+                              className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-red-50 hover:text-red-800 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                             >
                               <Trash2
                                 className="h-3.5 w-3.5"
@@ -537,14 +538,14 @@ export function RoundDocumentsPanel({
                             type="button"
                             disabled={isBusy}
                             onClick={() => setEditingDocId(null)}
-                            className="min-h-8 rounded border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                            className="min-h-8 rounded border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                           >
                             Cancel
                           </button>
                           <button
                             type="submit"
                             disabled={isBusy}
-                            className="min-h-8 rounded bg-[#4B0507] px-3 py-1 text-xs font-medium text-white hover:bg-[#380305] disabled:opacity-60"
+                            className="min-h-8 rounded bg-[#4B0507] px-3 py-1 text-xs font-medium text-white hover:bg-[#380305] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                           >
                             {isPending ? "Saving..." : "Save Title"}
                           </button>
@@ -604,14 +605,14 @@ export function RoundDocumentsPanel({
                             type="button"
                             disabled={isBusy}
                             onClick={() => setReplacingDocId(null)}
-                            className="min-h-8 rounded border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                            className="min-h-8 rounded border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                           >
                             Cancel
                           </button>
                           <button
                             type="submit"
                             disabled={isBusy}
-                            className="min-h-8 rounded bg-[#4B0507] px-3 py-1 text-xs font-medium text-white hover:bg-[#380305] disabled:opacity-60"
+                            className="min-h-8 rounded bg-[#4B0507] px-3 py-1 text-xs font-medium text-white hover:bg-[#380305] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                           >
                             {replaceStage
                               ? getStageButtonLabel(replaceStage, "replace")

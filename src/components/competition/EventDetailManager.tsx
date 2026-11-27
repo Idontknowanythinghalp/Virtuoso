@@ -567,8 +567,8 @@ export function EventDetailManager({
             role="status"
             className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
           >
-            Stage 2C migration 0007 is not applied yet. Live release status and
-            session history are unavailable until migration 0007 is applied.
+            Round release migration 0007 is not applied yet. Live release status
+            and session history are unavailable until migration 0007 is applied.
           </div>
         ) : releaseLoadError || hasClockError ? (
           <div
@@ -663,24 +663,24 @@ export function EventDetailManager({
                       key={round.id}
                       className="align-middle hover:bg-slate-50/60"
                     >
-                      <td className="px-4 py-3 font-mono text-xs tabular-nums text-slate-700">
+                      <td className="px-4 py-3 font-mono text-xs whitespace-nowrap tabular-nums text-slate-700">
                         Round {round.round_number}
                       </td>
                       <td className="px-4 py-3 font-medium text-slate-900">
                         <Link
                           href={`/events/${event.id}/rounds/${round.id}`}
-                          className="hover:text-[#4B0507] hover:underline"
+                          className="rounded hover:text-[#4B0507] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                         >
                           {round.name}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-700">
+                      <td className="px-4 py-3 text-xs whitespace-nowrap text-slate-700">
                         {SCORING_METHOD_LABELS[round.scoring_method]}
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-700">
+                      <td className="px-4 py-3 text-xs whitespace-nowrap text-slate-700">
                         {ATTRIBUTION_MODE_LABELS[round.attribution_mode]}
                       </td>
-                      <td className="px-4 py-3 text-xs">
+                      <td className="px-4 py-3 text-xs whitespace-nowrap">
                         <span className="font-medium text-slate-800">
                           {ROUND_STATUS_LABELS[round.status]}
                         </span>
@@ -691,7 +691,7 @@ export function EventDetailManager({
                           </span>
                         ) : null}
                       </td>
-                      <td className="px-4 py-3 text-xs">
+                      <td className="px-4 py-3 text-xs whitespace-nowrap">
                         <div className="font-mono tabular-nums text-slate-800">
                           {round.duration_minutes !== null
                             ? `${round.duration_minutes}m`
@@ -715,7 +715,7 @@ export function EventDetailManager({
                             disabled={isPending || index === 0}
                             onClick={() => handleMoveRound(index, -1)}
                             aria-label={`Move ${round.name} earlier`}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                           >
                             <ArrowUp
                               className="h-3.5 w-3.5"
@@ -727,7 +727,7 @@ export function EventDetailManager({
                             disabled={isPending || index === rounds.length - 1}
                             onClick={() => handleMoveRound(index, 1)}
                             aria-label={`Move ${round.name} later`}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                           >
                             <ArrowDown
                               className="h-3.5 w-3.5"
@@ -737,7 +737,7 @@ export function EventDetailManager({
                           {event.codename_mode === "per_round" ? (
                             <Link
                               href={`/events/${event.id}/codenames?roundId=${round.id}`}
-                              className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-800 hover:border-[#4B0507] hover:text-[#4B0507]"
+                              className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-800 hover:border-[#4B0507] hover:text-[#4B0507] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                             >
                               <KeyRound
                                 className="h-3 w-3"
@@ -751,7 +751,7 @@ export function EventDetailManager({
                           ) : null}
                           <Link
                             href={`/events/${event.id}/rounds/${round.id}`}
-                            className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-800 hover:bg-slate-50"
+                            className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-800 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                           >
                             <span>Criteria &amp; Release</span>
                             <ArrowRight
@@ -1013,6 +1013,12 @@ export function EventDetailManager({
               ) : (
                 entries.map((entry) => {
                   const confirmingRemove = confirmRemoveEntryId === entry.id;
+                  const subjectLabel =
+                    entry.entry_type === "contingent" && entry.contingent
+                      ? `${entry.contingent.contingent_code} ${entry.contingent.name}`
+                      : entry.participant
+                        ? `${entry.participant.participant_code} ${entry.participant.full_name}`
+                        : entry.id;
                   return (
                     <tr
                       key={entry.id}
@@ -1026,7 +1032,7 @@ export function EventDetailManager({
                         entry.contingent ? (
                           <Link
                             href={`/contingents/${entry.contingent.id}`}
-                            className="hover:text-[#4B0507] hover:underline"
+                            className="rounded hover:text-[#4B0507] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                           >
                             <span className="font-mono text-xs text-[#4B0507]">
                               {entry.contingent.contingent_code}
@@ -1038,7 +1044,7 @@ export function EventDetailManager({
                         ) : entry.participant ? (
                           <Link
                             href={`/participants/${entry.participant.id}`}
-                            className="hover:text-[#4B0507] hover:underline"
+                            className="rounded hover:text-[#4B0507] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                           >
                             <span className="font-mono text-xs text-[#4B0507]">
                               {entry.participant.participant_code}
@@ -1069,7 +1075,7 @@ export function EventDetailManager({
                       </td>
                       <td className="px-4 py-3">
                         <select
-                          aria-label={`Entry status for ${entry.id}`}
+                          aria-label={`Entry status for ${subjectLabel}`}
                           value={entry.status}
                           disabled={isPending}
                           onChange={(e) =>
@@ -1078,7 +1084,7 @@ export function EventDetailManager({
                               e.target.value as EventEntryStatus,
                             )
                           }
-                          className="min-h-8 rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-900 focus:border-[#4B0507] focus:outline-none"
+                          className="min-h-8 rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20"
                         >
                           {Object.entries(ENTRY_STATUS_LABELS).map(
                             ([val, label]) => (
@@ -1097,7 +1103,7 @@ export function EventDetailManager({
                                 type="button"
                                 disabled={isPending}
                                 onClick={() => handleRemoveEntry(entry.id)}
-                                className="min-h-8 rounded border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-red-800 hover:bg-red-100 disabled:opacity-60"
+                                className="min-h-8 rounded border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-red-800 hover:bg-red-100 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                               >
                                 Confirm Remove
                               </button>
@@ -1105,7 +1111,7 @@ export function EventDetailManager({
                                 type="button"
                                 disabled={isPending}
                                 onClick={() => setConfirmRemoveEntryId(null)}
-                                className="min-h-8 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50"
+                                className="min-h-8 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                               >
                                 Cancel
                               </button>
@@ -1115,7 +1121,7 @@ export function EventDetailManager({
                               type="button"
                               disabled={isPending}
                               onClick={() => setConfirmRemoveEntryId(entry.id)}
-                              className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-red-50 hover:text-red-800"
+                              className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-red-50 hover:text-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                             >
                               <Trash2
                                 className="h-3.5 w-3.5"

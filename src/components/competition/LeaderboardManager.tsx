@@ -25,6 +25,7 @@ import {
   unpublishLeaderboardAction,
   updateLeaderboardEntryAction,
 } from "@/app/actions/leaderboard";
+import { formatIstTimestamp } from "@/lib/date-time";
 import {
   calculateCompetitionRankings,
   canPublishEventLeaderboard,
@@ -64,23 +65,6 @@ interface LeaderboardManagerProps {
   loadError: string | null;
   publicationLoadError: string | null;
   snapshotLoadError: string | null;
-}
-
-function formatUtcTimestamp(isoString: string | null | undefined): string {
-  if (!isoString) return "";
-  const d = new Date(isoString);
-  if (Number.isNaN(d.getTime())) return isoString;
-  return (
-    d.toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-      timeZone: "UTC",
-    }) + " UTC"
-  );
 }
 
 export function LeaderboardManager({
@@ -161,6 +145,9 @@ export function LeaderboardManager({
     eventStatus: event.status,
     isPublished: publication.isPublished,
   });
+
+  const isPublishedAndUpToDate =
+    publication.isPublished && !hasUnpublishedChanges;
 
   const rankCounts = useMemo(
     () => countRankOccurrences(rankedDraftEntries),
@@ -326,7 +313,7 @@ export function LeaderboardManager({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
           href={`/events/${event.id}`}
-          className="inline-flex min-h-9 items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-[#4B0507]"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded text-sm font-medium text-slate-600 hover:text-[#4B0507] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           <span>
@@ -354,7 +341,7 @@ export function LeaderboardManager({
           />
           <div className="space-y-1">
             <p className="font-semibold">
-              Stage 3A database migration is not yet applied
+              Leaderboard entries migration is not yet applied
             </p>
             <p className="text-amber-900">
               The <code className="font-mono">leaderboard_entries</code> table
@@ -379,7 +366,7 @@ export function LeaderboardManager({
           />
           <div className="space-y-1">
             <p className="font-semibold">
-              Stage 4.4D publication migration is not yet applied
+              Leaderboard publication migration is not yet applied
             </p>
             <p className="text-amber-900">
               The{" "}
@@ -405,7 +392,7 @@ export function LeaderboardManager({
           />
           <div className="space-y-1">
             <p className="font-semibold">
-              Stage 4.4E numeric snapshot migration is not yet applied
+              Numeric leaderboard snapshot migration is not yet applied
             </p>
             <p className="text-amber-900">
               The{" "}
@@ -561,18 +548,18 @@ export function LeaderboardManager({
               </h2>
               {publication.isPublished ? (
                 hasUnpublishedChanges ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-900">
+                  <span className="inline-flex items-center gap-1.5 rounded border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-900">
                     <Clock className="h-3.5 w-3.5" aria-hidden="true" />
                     <span>Published · Unpublished Draft Changes</span>
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
+                  <span className="inline-flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
                     <Eye className="h-3.5 w-3.5" aria-hidden="true" />
                     <span>Published · Up to Date</span>
                   </span>
                 )
               ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
+                <span className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
                   <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Unpublished (Draft Only)</span>
                 </span>
@@ -583,20 +570,20 @@ export function LeaderboardManager({
               {publication.isPublished
                 ? hasUnpublishedChanges
                   ? "Your draft standings have changed since the last publication. Participants still see the previous published snapshot until a Super Admin publishes this updated ranking."
-                  : "Participants currently see the published snapshot matching your draft standings. Any new draft edits remain hidden until you click Publish Ranking."
+                  : "Participants currently see the published snapshot matching your draft standings. Any new draft edits remain hidden until you click Publish Updated Ranking."
                 : "Draft changes stay private to organisers. Participants will not see any standings until a Super Admin clicks Publish Ranking."}
             </p>
 
             {publication.publishedAt ? (
               <p className="text-xs text-slate-500">
-                Last published: {formatUtcTimestamp(publication.publishedAt)}
+                Last published: {formatIstTimestamp(publication.publishedAt)}
                 {!publication.isPublished && publication.unpublishedAt
-                  ? ` · Unpublished: ${formatUtcTimestamp(publication.unpublishedAt)}`
+                  ? ` · Unpublished: ${formatIstTimestamp(publication.unpublishedAt)}`
                   : ""}
               </p>
             ) : !publication.isPublished && publication.unpublishedAt ? (
               <p className="text-xs text-slate-500">
-                Last unpublished: {formatUtcTimestamp(publication.unpublishedAt)}
+                Last unpublished: {formatIstTimestamp(publication.unpublishedAt)}
               </p>
             ) : null}
           </div>
@@ -618,26 +605,29 @@ export function LeaderboardManager({
                     isPending ||
                     isPublicationUnavailable ||
                     !publishEligibility.ok ||
-                    confirmPublicationAction === "publish"
+                    confirmPublicationAction === "publish" ||
+                    isPublishedAndUpToDate
                   }
                   title={
                     !publishEligibility.ok
                       ? publishEligibility.error
-                      : undefined
+                      : isPublishedAndUpToDate
+                        ? "Published standings already match the current draft."
+                        : undefined
                   }
                   onClick={() => {
                     setFeedback(null);
                     setConfirmPublicationAction("publish");
                   }}
-                  className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-[#4B0507] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#380305] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-[#4B0507] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#380305] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                 >
                   <Send className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>
-                    {publication.isPublished
-                      ? hasUnpublishedChanges
+                    {!publication.isPublished
+                      ? "Publish Ranking"
+                      : hasUnpublishedChanges
                         ? "Publish Updated Ranking"
-                        : "Publish Ranking"
-                      : "Publish Ranking"}
+                        : "Published (Up to Date)"}
                   </span>
                 </button>
 
@@ -654,7 +644,7 @@ export function LeaderboardManager({
                       setFeedback(null);
                       setConfirmPublicationAction("unpublish");
                     }}
-                    className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 hover:border-red-300 hover:bg-red-50 hover:text-red-900 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 hover:border-red-300 hover:bg-red-50 hover:text-red-900 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                   >
                     <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
                     <span>Unpublish</span>
@@ -687,7 +677,7 @@ export function LeaderboardManager({
                   !publishEligibility.ok
                 }
                 onClick={handlePublishLeaderboard}
-                className="min-h-9 rounded-md bg-[#4B0507] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#380305] disabled:opacity-50"
+                className="min-h-9 rounded-md bg-[#4B0507] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#380305] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
               >
                 {isPending ? "Publishing..." : "Confirm Publish Ranking"}
               </button>
@@ -695,7 +685,7 @@ export function LeaderboardManager({
                 type="button"
                 disabled={isPending}
                 onClick={() => setConfirmPublicationAction(null)}
-                className="min-h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                className="min-h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
               >
                 Cancel
               </button>
@@ -719,7 +709,7 @@ export function LeaderboardManager({
                   !unpublishEligibility.ok
                 }
                 onClick={handleUnpublishLeaderboard}
-                className="min-h-9 rounded-md border border-red-300 bg-red-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                className="min-h-9 rounded-md border border-red-300 bg-red-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
               >
                 {isPending ? "Unpublishing..." : "Confirm Unpublish"}
               </button>
@@ -727,7 +717,7 @@ export function LeaderboardManager({
                 type="button"
                 disabled={isPending}
                 onClick={() => setConfirmPublicationAction(null)}
-                className="min-h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                className="min-h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
               >
                 Cancel
               </button>
@@ -926,7 +916,7 @@ export function LeaderboardManager({
                                     ? closeInlineEditors()
                                     : openEditRow(entry)
                                 }
-                                className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:border-[#4B0507] hover:text-[#4B0507] disabled:opacity-50"
+                                className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:border-[#4B0507] hover:text-[#4B0507] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                               >
                                 <Edit3
                                   className="h-3.5 w-3.5"
@@ -940,7 +930,7 @@ export function LeaderboardManager({
                                     type="button"
                                     disabled={isPending}
                                     onClick={() => handleRemoveEntry(entry.id)}
-                                    className="min-h-8 rounded border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-red-800 hover:bg-red-100 disabled:opacity-60"
+                                    className="min-h-8 rounded border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-red-800 hover:bg-red-100 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                                   >
                                     Confirm Remove
                                   </button>
@@ -948,7 +938,7 @@ export function LeaderboardManager({
                                     type="button"
                                     disabled={isPending}
                                     onClick={() => setConfirmRemoveId(null)}
-                                    className="min-h-8 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50"
+                                    className="min-h-8 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                                   >
                                     Cancel
                                   </button>
@@ -961,7 +951,7 @@ export function LeaderboardManager({
                                     setEditingEntryId(null);
                                     setConfirmRemoveId(entry.id);
                                   }}
-                                  className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-red-50 hover:text-red-800 disabled:opacity-50"
+                                  className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-red-50 hover:text-red-800 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                                 >
                                   <Trash2
                                     className="h-3.5 w-3.5"
@@ -1048,7 +1038,7 @@ export function LeaderboardManager({
                                   type="button"
                                   disabled={isPending}
                                   onClick={closeInlineEditors}
-                                  className="min-h-9 rounded-md border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                  className="min-h-9 rounded-md border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                                 >
                                   Cancel
                                 </button>
@@ -1057,7 +1047,7 @@ export function LeaderboardManager({
                                   disabled={
                                     isPending || !editScoreValidation.ok
                                   }
-                                  className="min-h-9 rounded-md bg-[#4B0507] px-4 py-1.5 text-xs font-medium text-white hover:bg-[#380305] disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="min-h-9 rounded-md bg-[#4B0507] px-4 py-1.5 text-xs font-medium text-white hover:bg-[#380305] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                                 >
                                   {isPending ? "Saving..." : "Save Draft"}
                                 </button>

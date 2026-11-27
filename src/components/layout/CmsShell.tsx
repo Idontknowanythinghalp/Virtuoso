@@ -1,28 +1,22 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Award,
   Building2,
-  ClipboardCheck,
   FileSearch,
   FileSpreadsheet,
-  FolderArchive,
   LayoutDashboard,
   LogOut,
   Menu,
-  Scale,
-  ShieldCheck,
   UserCheck,
   UserCog,
-  Users,
   X,
 } from "lucide-react";
-import { CMS_MODULES } from "@/lib/navigation";
 import { siteConfig } from "@/lib/site-config";
-import type { BreadcrumbItem, CmsModuleSlug } from "@/types/cms";
+import type { BreadcrumbItem } from "@/types/cms";
 import { formatOrganiserRole, type OrganiserSessionUser } from "@/types/auth";
 import { BrandMark } from "@/components/cms/BrandMark";
 import { signOutOrganiserAction } from "@/app/actions/auth";
@@ -33,36 +27,36 @@ interface CmsShellProps {
   children: React.ReactNode;
 }
 
-const MODULE_ICONS: Record<CmsModuleSlug, React.ReactNode> = {
-  competitions: <Award className="h-4 w-4 shrink-0" aria-hidden="true" />,
-  contingents: <Users className="h-4 w-4 shrink-0" aria-hidden="true" />,
-  "judging-scoring": <Scale className="h-4 w-4 shrink-0" aria-hidden="true" />,
-  results: (
-    <ClipboardCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
-  ),
-  "media-vault": (
-    <FolderArchive className="h-4 w-4 shrink-0" aria-hidden="true" />
-  ),
-  "access-audit": (
-    <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
-  ),
-};
-
 export function CmsShell({ breadcrumbs, user, children }: CmsShellProps) {
   const pathname = usePathname();
   const [openAtPathname, setOpenAtPathname] = useState<string | null>(null);
   const mobileNavOpen = openAtPathname === pathname;
   const isSuperAdmin = user.role === "super_admin";
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
-    if (!mobileNavOpen) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpenAtPathname(null);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    if (mobileNavOpen) {
+      wasOpenRef.current = true;
+      const previousOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      closeButtonRef.current?.focus();
+
+      const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key === "Escape") {
+          setOpenAtPathname(null);
+        }
+      };
+      window.addEventListener("keydown", handleKeyDown);
+      return () => {
+        document.body.style.overflow = previousOverflow;
+        window.removeEventListener("keydown", handleKeyDown);
+      };
+    } else if (wasOpenRef.current) {
+      wasOpenRef.current = false;
+      menuButtonRef.current?.focus();
+    }
   }, [mobileNavOpen]);
 
   const sidebarContent = (
@@ -108,7 +102,7 @@ export function CmsShell({ breadcrumbs, user, children }: CmsShellProps) {
 
           <div className="space-y-1">
             <p className="px-2.5 text-xs font-medium text-slate-500">
-              Competition Structure
+              Competition Operations
             </p>
             <ul className="space-y-1">
               <li>
@@ -165,7 +159,7 @@ export function CmsShell({ breadcrumbs, user, children }: CmsShellProps) {
                     className="h-4 w-4 shrink-0"
                     aria-hidden="true"
                   />
-                  <span className="truncate">Import Preparation</span>
+                  <span className="truncate">Registration Imports</span>
                 </Link>
               </li>
             </ul>
@@ -209,36 +203,6 @@ export function CmsShell({ breadcrumbs, user, children }: CmsShellProps) {
               </ul>
             </div>
           ) : null}
-
-          <div className="space-y-1">
-            <p className="px-2.5 text-xs font-medium text-slate-500">
-              Planned Modules
-            </p>
-            <ul className="space-y-1">
-              {CMS_MODULES.filter((mod) => mod.status !== "Active").map(
-                (mod) => {
-                  const isActive = pathname === mod.href;
-                  return (
-                    <li key={mod.slug}>
-                      <Link
-                        href={mod.href}
-                        className={`flex min-h-10 items-center justify-between gap-2 rounded-md px-2.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507] ${
-                          isActive
-                            ? "bg-[#4B0507] text-white"
-                            : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
-                        }`}
-                      >
-                        <span className="flex min-w-0 items-center gap-2.5">
-                          {MODULE_ICONS[mod.slug]}
-                          <span className="truncate">{mod.title}</span>
-                        </span>
-                      </Link>
-                    </li>
-                  );
-                },
-              )}
-            </ul>
-          </div>
         </nav>
       </div>
 
@@ -309,6 +273,7 @@ export function CmsShell({ breadcrumbs, user, children }: CmsShellProps) {
           <aside className="relative z-10 flex h-full w-72 max-w-[85vw] flex-col border-r border-slate-200 bg-white shadow-lg">
             <div className="flex items-center justify-end border-b border-slate-200 px-3 py-2">
               <button
+                ref={closeButtonRef}
                 type="button"
                 onClick={() => setOpenAtPathname(null)}
                 aria-label="Close navigation menu"
@@ -327,9 +292,11 @@ export function CmsShell({ breadcrumbs, user, children }: CmsShellProps) {
         <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <button
+              ref={menuButtonRef}
               type="button"
               onClick={() => setOpenAtPathname(pathname)}
               aria-label="Open navigation menu"
+              aria-expanded={mobileNavOpen}
               className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507] lg:hidden"
             >
               <Menu className="h-5 w-5" aria-hidden="true" />

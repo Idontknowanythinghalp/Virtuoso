@@ -1,21 +1,19 @@
 import React from "react";
-import Link from "next/link";
 import {
   AlertTriangle,
   CalendarCheck2,
   ClipboardList,
-  LogOut,
   ShieldCheck,
 } from "lucide-react";
 import { logoutTeamAction } from "@/app/actions/team-auth";
 import { requireActiveTeam } from "@/lib/auth/team-guards";
-import { siteConfig } from "@/lib/site-config";
 import { loadTeamRegisteredEventsForTeam } from "@/lib/team-portal/read";
 import {
   ENTRY_STATUS_LABELS,
   EVENT_STATUS_LABELS,
 } from "@/types/competition";
 import { BrandMark } from "@/components/cms/BrandMark";
+import { TeamPortalShell } from "@/components/team/TeamPortalShell";
 import {
   TeamStandingsDashboardCard,
   TeamStandingsNavLink,
@@ -28,61 +26,25 @@ export default async function TeamPortalPage() {
   const dashboard = await loadTeamRegisteredEventsForTeam(team);
 
   return (
-    <div className="flex min-h-screen flex-col justify-between bg-[#F8FAFC]">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <BrandMark
-              src="/brand/virtuoso-emblem.png"
-              alt="Virtuoso Emblem"
-              className="h-9 w-9 shrink-0 rounded-md border border-slate-200 bg-[#200000] object-contain p-1"
-              fallbackLabel="V"
-            />
-            <div>
-              <p className="text-xs font-medium text-[#4B0507]">
-                {siteConfig.institution}
-              </p>
-              <p className="font-display text-base font-bold text-slate-900">
-                Virtuoso Team Portal
-              </p>
-            </div>
-          </div>
-
-          <form action={logoutTeamAction}>
-            <button
-              type="submit"
-              className="inline-flex min-h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
-            >
-              <LogOut className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>Sign Out</span>
-            </button>
-          </form>
-        </div>
-
-        <nav
-          aria-label="Team portal navigation"
-          className="border-t border-slate-100 bg-slate-50/70"
-        >
-          <div className="mx-auto flex max-w-4xl items-center gap-6 px-4 sm:px-6">
-            <Link
-              href="/team"
-              aria-current="page"
-              className="border-b-2 border-[#4B0507] py-2.5 text-sm font-semibold text-[#4B0507]"
-            >
-              Dashboard
-            </Link>
-            <Link
-              href="/team/rounds"
-              className="border-b-2 border-transparent py-2.5 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
-            >
-              Current Rounds
-            </Link>
-            <TeamStandingsNavLink />
-          </div>
-        </nav>
-      </header>
-
-      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10">
+    <TeamPortalShell
+      activeNav="dashboard"
+      teamIdentity={{
+        contingentCode: team.contingentCode,
+        contingentName: team.contingentName,
+        institutionName: team.institutionName,
+      }}
+      brandMark={
+        <BrandMark
+          src="/brand/virtuoso-emblem.png"
+          alt="Virtuoso Emblem"
+          className="h-9 w-9 shrink-0 rounded-md border border-slate-200 bg-[#200000] object-contain p-1"
+          fallbackLabel="V"
+        />
+      }
+      logoutAction={logoutTeamAction}
+      standingsNavLink={<TeamStandingsNavLink />}
+      showSessionStrip={false}
+    >
         <section
           aria-labelledby="team-session-heading"
           className="rounded-lg border border-slate-200 bg-white p-6"
@@ -245,13 +207,7 @@ export default async function TeamPortalPage() {
 
                       <dl className="mt-4 flex items-center justify-between gap-4 border-t border-slate-100 pt-3 text-xs">
                         <div className="flex items-center gap-1.5">
-                          <dt className="text-slate-500">Entry:</dt>
-                          <dd className="font-medium text-slate-800">
-                            {ENTRY_STATUS_LABELS[item.entryStatus]}
-                          </dd>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <dt className="text-slate-500">Event:</dt>
+                          <dt className="text-slate-500">Event Status:</dt>
                           <dd className="font-medium text-slate-800">
                             {EVENT_STATUS_LABELS[item.eventStatus]}
                           </dd>
@@ -264,14 +220,6 @@ export default async function TeamPortalPage() {
             </ul>
           )}
         </section>
-      </main>
-
-      <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4 text-xs text-slate-500 sm:px-6">
-          <span>{siteConfig.department}</span>
-          <span>4–5 December 2026</span>
-        </div>
-      </footer>
-    </div>
+    </TeamPortalShell>
   );
 }

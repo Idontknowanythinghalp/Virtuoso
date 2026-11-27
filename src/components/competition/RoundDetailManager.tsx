@@ -164,7 +164,7 @@ export function RoundDetailManager({
       <div>
         <Link
           href={`/events/${event.id}`}
-          className="inline-flex min-h-9 items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-[#4B0507]"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded text-sm font-medium text-slate-600 hover:text-[#4B0507] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           <span>Back to {event.code} · {event.name}</span>
@@ -416,7 +416,7 @@ export function RoundDetailManager({
                   </span>
                   <span className="block text-xs text-slate-600">
                     When locked (or automatically upon first release, or once
-                    Stage 3 scores exist), judging criteria cannot be added,
+                    evaluation scores exist), judging criteria cannot be added,
                     edited, reordered, or deleted.
                   </span>
                 </label>
@@ -481,7 +481,7 @@ export function RoundDetailManager({
             <span>
               This round is currently locked. Judging criteria structure is
               protected from edits, reordering, or removal until unlocked (and
-              is permanently protected once Stage 3 scores exist).
+              is permanently protected once evaluation scores exist).
             </span>
           </div>
         ) : null}
@@ -568,7 +568,7 @@ export function RoundDetailManager({
                                   min={1}
                                   max={100}
                                   defaultValue={criterion.display_order}
-                                  className="min-h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 font-mono text-sm tabular-nums text-slate-900"
+                                  className="min-h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 font-mono text-sm tabular-nums text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20"
                                 />
                               </div>
 
@@ -586,7 +586,7 @@ export function RoundDetailManager({
                                   required
                                   maxLength={160}
                                   defaultValue={criterion.name}
-                                  className="min-h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-900"
+                                  className="min-h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20"
                                 />
                               </div>
 
@@ -607,7 +607,7 @@ export function RoundDetailManager({
                                     min="0.01"
                                     max="10000"
                                     defaultValue={criterion.max_points}
-                                    className="min-h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 font-mono text-sm tabular-nums text-slate-900"
+                                    className="min-h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 font-mono text-sm tabular-nums text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20"
                                   />
                                 </div>
 
@@ -627,7 +627,7 @@ export function RoundDetailManager({
                                     min="0.01"
                                     max="100"
                                     defaultValue={criterion.weight}
-                                    className="min-h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 font-mono text-sm tabular-nums text-slate-900"
+                                    className="min-h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 font-mono text-sm tabular-nums text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20"
                                   />
                                 </div>
                               </div>
@@ -646,7 +646,7 @@ export function RoundDetailManager({
                                 rows={2}
                                 maxLength={2000}
                                 defaultValue={criterion.rubric_guidance ?? ""}
-                                className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-900"
+                                className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20"
                               />
                             </div>
 
@@ -655,14 +655,14 @@ export function RoundDetailManager({
                                 type="button"
                                 disabled={isPending}
                                 onClick={() => setEditingCriterionId(null)}
-                                className="min-h-9 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                className="min-h-9 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                               >
                                 Cancel
                               </button>
                               <button
                                 type="submit"
                                 disabled={isPending}
-                                className="min-h-9 rounded bg-[#4B0507] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#380305] disabled:opacity-60"
+                                className="min-h-9 rounded bg-[#4B0507] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#380305] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                               >
                                 Save Criterion
                               </button>
@@ -707,7 +707,7 @@ export function RoundDetailManager({
                                 onClick={() =>
                                   handleDeleteCriterion(criterion.id)
                                 }
-                                className="min-h-8 rounded border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-red-800 hover:bg-red-100 disabled:opacity-50"
+                                className="min-h-8 rounded border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-red-800 hover:bg-red-100 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                               >
                                 Confirm Delete
                               </button>
@@ -715,7 +715,7 @@ export function RoundDetailManager({
                                 type="button"
                                 disabled={isPending}
                                 onClick={() => setConfirmDeleteId(null)}
-                                className="min-h-8 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50"
+                                className="min-h-8 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                               >
                                 Cancel
                               </button>
@@ -729,7 +729,7 @@ export function RoundDetailManager({
                                 }
                                 onClick={() => handleMoveCriterion(index, -1)}
                                 aria-label={`Move ${criterion.name} up`}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                               >
                                 <ArrowUp
                                   className="h-3.5 w-3.5"
@@ -745,7 +745,7 @@ export function RoundDetailManager({
                                 }
                                 onClick={() => handleMoveCriterion(index, 1)}
                                 aria-label={`Move ${criterion.name} down`}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                               >
                                 <ArrowDown
                                   className="h-3.5 w-3.5"
@@ -758,7 +758,7 @@ export function RoundDetailManager({
                                 onClick={() =>
                                   setEditingCriterionId(criterion.id)
                                 }
-                                className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                               >
                                 <Edit3
                                   className="h-3.5 w-3.5"
@@ -770,7 +770,7 @@ export function RoundDetailManager({
                                 type="button"
                                 disabled={isPending || round.is_locked}
                                 onClick={() => setConfirmDeleteId(criterion.id)}
-                                className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-red-50 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-40"
+                                className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-red-50 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                               >
                                 <Trash2
                                   className="h-3.5 w-3.5"
@@ -816,7 +816,7 @@ export function RoundDetailManager({
                   max={100}
                   defaultValue={nextDisplayOrder}
                   disabled={round.is_locked}
-                  className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm tabular-nums text-slate-900 disabled:bg-slate-50"
+                  className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm tabular-nums text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20 disabled:bg-slate-50"
                 />
               </div>
 
@@ -835,7 +835,7 @@ export function RoundDetailManager({
                   maxLength={160}
                   disabled={round.is_locked}
                   placeholder="Enter criterion label"
-                  className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 disabled:bg-slate-50"
+                  className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20 disabled:bg-slate-50"
                 />
               </div>
 
@@ -857,7 +857,7 @@ export function RoundDetailManager({
                     max="10000"
                     disabled={round.is_locked}
                     placeholder="25"
-                    className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm tabular-nums text-slate-900 disabled:bg-slate-50"
+                    className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm tabular-nums text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20 disabled:bg-slate-50"
                   />
                 </div>
 
@@ -878,7 +878,7 @@ export function RoundDetailManager({
                     max="100"
                     defaultValue="1"
                     disabled={round.is_locked}
-                    className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm tabular-nums text-slate-900 disabled:bg-slate-50"
+                    className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm tabular-nums text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20 disabled:bg-slate-50"
                   />
                 </div>
               </div>
@@ -898,7 +898,7 @@ export function RoundDetailManager({
                 maxLength={2000}
                 disabled={round.is_locked}
                 placeholder="Guidance for evaluators applying this criterion"
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 disabled:bg-slate-50"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20 disabled:bg-slate-50"
               />
             </div>
 
@@ -920,7 +920,7 @@ export function RoundDetailManager({
               <button
                 type="submit"
                 disabled={createPending || round.is_locked}
-                className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#4B0507] px-4 py-2 text-sm font-medium whitespace-nowrap text-white hover:bg-[#380305] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#4B0507] px-4 py-2 text-sm font-medium whitespace-nowrap text-white hover:bg-[#380305] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
               >
                 <Plus className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span>

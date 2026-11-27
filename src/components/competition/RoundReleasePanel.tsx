@@ -35,6 +35,7 @@ import {
   MAX_ROUND_DURATION_MINUTES,
   MIN_ROUND_DURATION_MINUTES,
 } from "@/lib/competition/round-release";
+import { formatIstTimestamp } from "@/lib/date-time";
 import type {
   EventRecord,
   RoundRecord,
@@ -330,7 +331,7 @@ export function RoundReleasePanel({
           role="status"
           className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
         >
-          Stage 2C database migration{" "}
+          Round release database migration{" "}
           <code className="font-mono text-xs">
             supabase/migrations/202611220007_stage2c_round_release_management.sql
           </code>{" "}
@@ -427,14 +428,14 @@ export function RoundReleasePanel({
               disabled={!canEditDuration || durationPending}
               defaultValue={round.duration_minutes ?? ""}
               placeholder="e.g. 45"
-              className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm tabular-nums text-slate-900 disabled:bg-slate-100 disabled:text-slate-500"
+              className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm tabular-nums text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20 disabled:bg-slate-100 disabled:text-slate-500"
             />
           </div>
 
           <button
             type="submit"
             disabled={!canEditDuration || durationPending}
-            className="min-h-10 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium whitespace-nowrap text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-h-10 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium whitespace-nowrap text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
           >
             {durationPending ? "Saving..." : "Save Duration"}
           </button>
@@ -543,7 +544,7 @@ export function RoundReleasePanel({
                 maxLength={500}
                 disabled={!canAttemptFirstRelease || releasePending}
                 placeholder="Optional organiser note recorded in release history"
-                className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 disabled:bg-slate-100"
+                className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20 disabled:bg-slate-100"
               />
             </div>
 
@@ -565,7 +566,7 @@ export function RoundReleasePanel({
               <button
                 type="submit"
                 disabled={!canAttemptFirstRelease || releasePending}
-                className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#4B0507] px-4 py-2 text-sm font-medium whitespace-nowrap text-white hover:bg-[#380305] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#4B0507] px-4 py-2 text-sm font-medium whitespace-nowrap text-white hover:bg-[#380305] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
               >
                 <Play className="h-4 w-4" aria-hidden="true" />
                 <span>
@@ -590,12 +591,12 @@ export function RoundReleasePanel({
               </p>
               <p className="mt-1 text-xs text-emerald-900">
                 Server start:{" "}
-                <span className="font-mono" suppressHydrationWarning>
-                  {new Date(effective.openSession.started_at).toLocaleString()}
+                <span className="font-mono">
+                  {formatIstTimestamp(effective.openSession.started_at)}
                 </span>{" "}
                 · Scheduled expiry:{" "}
-                <span className="font-mono" suppressHydrationWarning>
-                  {new Date(effective.openSession.expires_at).toLocaleString()}
+                <span className="font-mono">
+                  {formatIstTimestamp(effective.openSession.expires_at)}
                 </span>
               </p>
             </div>
@@ -634,7 +635,7 @@ export function RoundReleasePanel({
                 type="button"
                 disabled={closePending}
                 onClick={() => setConfirmingClose(true)}
-                className="inline-flex min-h-10 items-center gap-2 rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium whitespace-nowrap text-red-800 hover:bg-red-50"
+                className="inline-flex min-h-10 items-center gap-2 rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium whitespace-nowrap text-red-800 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
               >
                 <Square className="h-4 w-4" aria-hidden="true" />
                 <span>Close Round Early</span>
@@ -667,7 +668,7 @@ export function RoundReleasePanel({
                   type="text"
                   maxLength={500}
                   placeholder="Optional reason for manual early closure"
-                  className="min-h-9 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900"
+                  className="min-h-9 w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20"
                 />
               </div>
 
@@ -676,14 +677,14 @@ export function RoundReleasePanel({
                   type="button"
                   disabled={closePending}
                   onClick={() => setConfirmingClose(false)}
-                  className="min-h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  className="min-h-9 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={closePending}
-                  className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-red-700 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-red-800 disabled:opacity-60"
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-red-700 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-red-800 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                 >
                   <Square className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>
@@ -702,8 +703,8 @@ export function RoundReleasePanel({
           <div className="space-y-1 text-xs text-amber-900">
             <p className="font-semibold">
               Session #{effective.openSession.session_number} expired at{" "}
-              <span className="font-mono" suppressHydrationWarning>
-                {new Date(effective.openSession.expires_at).toLocaleString()}
+              <span className="font-mono">
+                {formatIstTimestamp(effective.openSession.expires_at)}
               </span>
             </p>
             <p>
@@ -716,7 +717,7 @@ export function RoundReleasePanel({
             type="button"
             disabled={isPending}
             onClick={handleFinalizeExpired}
-            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium whitespace-nowrap text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium whitespace-nowrap text-amber-900 hover:bg-amber-100 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
           >
             <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
             <span>
@@ -783,7 +784,7 @@ export function RoundReleasePanel({
                       ? `Keep ${round.duration_minutes}m`
                       : "1–1,440"
                   }
-                  className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm tabular-nums text-slate-900 disabled:bg-slate-100"
+                  className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm tabular-nums text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20 disabled:bg-slate-100"
                 />
                 <p className="text-[11px] text-slate-500">
                   Leave blank to keep{" "}
@@ -805,7 +806,7 @@ export function RoundReleasePanel({
                   maxLength={500}
                   disabled={!canAttemptReopen || reopenPending}
                   placeholder="Reason for reopening this round"
-                  className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 disabled:bg-slate-100"
+                  className="min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20 disabled:bg-slate-100"
                 />
               </div>
             </div>
@@ -856,7 +857,7 @@ export function RoundReleasePanel({
                 disabled={
                   !canAttemptReopen || !confirmReopen || reopenPending
                 }
-                className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#4B0507] px-4 py-2 text-sm font-medium whitespace-nowrap text-white hover:bg-[#380305] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#4B0507] px-4 py-2 text-sm font-medium whitespace-nowrap text-white hover:bg-[#380305] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
               >
                 <RotateCcw className="h-4 w-4" aria-hidden="true" />
                 <span>
@@ -943,26 +944,17 @@ export function RoundReleasePanel({
                       <td className="px-3 py-2.5 font-mono tabular-nums text-slate-700">
                         {session.duration_minutes}m
                       </td>
-                      <td
-                        className="px-3 py-2.5 font-mono text-slate-700"
-                        suppressHydrationWarning
-                      >
-                        {new Date(session.started_at).toLocaleString()}
+                      <td className="px-3 py-2.5 font-mono text-slate-700">
+                        {formatIstTimestamp(session.started_at)}
                       </td>
-                      <td
-                        className="px-3 py-2.5 font-mono text-slate-700"
-                        suppressHydrationWarning
-                      >
-                        {new Date(session.expires_at).toLocaleString()}
+                      <td className="px-3 py-2.5 font-mono text-slate-700">
+                        {formatIstTimestamp(session.expires_at)}
                       </td>
-                      <td
-                        className="px-3 py-2.5 font-mono text-slate-700"
-                        suppressHydrationWarning
-                      >
+                      <td className="px-3 py-2.5 font-mono text-slate-700">
                         {session.closed_at
-                          ? new Date(session.closed_at).toLocaleString()
+                          ? formatIstTimestamp(session.closed_at)
                           : isOpenExpired
-                            ? `${new Date(session.expires_at).toLocaleString()} (expiry)`
+                            ? `${formatIstTimestamp(session.expires_at)} (expiry)`
                             : "—"}
                       </td>
                       <td className="px-3 py-2.5 font-medium text-slate-900">

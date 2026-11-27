@@ -70,7 +70,7 @@ export default async function EventsPage() {
     >
       <section className="space-y-2 border-b border-slate-200 pb-6">
         <p className="text-xs font-medium text-[#4B0507]">
-          Stage 2A · Competition Structure
+          Competition Management
         </p>
         <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
           Competition Events

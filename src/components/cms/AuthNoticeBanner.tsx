@@ -21,10 +21,12 @@ export function AuthNoticeBanner({ user }: AuthNoticeBannerProps) {
             Authenticated Organiser Session
           </h2>
           <p className="max-w-3xl text-sm leading-relaxed text-slate-600">
-            Signed in as <span className="font-medium text-slate-900">{user.fullName}</span> (
-            {formatOrganiserRole(user.role)}). In V1, active coordinators share
-            universal access across all events and rounds. Competition modules
-            and the separate competitor portal remain deferred to later stages.
+            Signed in as{" "}
+            <span className="font-medium text-slate-900">{user.fullName}</span>{" "}
+            ({formatOrganiserRole(user.role)}). Active organisers share
+            access across events, rounds, participants, codenames, imports, and
+            leaderboards, while account governance and leaderboard publication
+            remain restricted to Super Admins.
           </p>
         </div>
       </div>

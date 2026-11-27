@@ -245,7 +245,7 @@ export function CodenamesManager({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
           href={`/events/${event.id}`}
-          className="inline-flex min-h-9 items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-[#4B0507]"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded text-sm font-medium text-slate-600 hover:text-[#4B0507] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           <span>
@@ -273,7 +273,7 @@ export function CodenamesManager({
           />
           <div className="space-y-1">
             <p className="font-semibold">
-              Stage 2B.3 database migration is not yet applied
+              Codename database migration is not yet applied
             </p>
             <p className="text-amber-900">
               The <code className="font-mono">entry_codenames</code> table was
@@ -507,7 +507,7 @@ export function CodenamesManager({
                   key={tab.id}
                   type="button"
                   onClick={() => setFilter(tab.id)}
-                  className={`rounded px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
+                  className={`rounded px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507] ${
                     filter === tab.id
                       ? "bg-[#4B0507] text-white"
                       : "text-slate-700 hover:bg-slate-100"
@@ -518,7 +518,7 @@ export function CodenamesManager({
               ))}
             </div>
 
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <Search
                 className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-slate-400"
                 aria-hidden="true"
@@ -529,7 +529,7 @@ export function CodenamesManager({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search codename or entry..."
-                className="min-h-9 w-56 rounded-md border border-slate-300 bg-white pr-3 pl-8 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20"
+                className="min-h-9 w-full rounded-md border border-slate-300 bg-white pr-3 pl-8 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20 sm:w-56"
               />
             </div>
           </div>
@@ -668,7 +668,7 @@ export function CodenamesManager({
                                   ? closeEditor()
                                   : openCorrectEditor(entry)
                               }
-                              className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                              className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                             >
                               <Edit3
                                 className="h-3.5 w-3.5"
@@ -689,7 +689,7 @@ export function CodenamesManager({
                                   ? closeEditor()
                                   : openAssignEditor(entry)
                               }
-                              className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:border-[#4B0507] hover:text-[#4B0507] disabled:opacity-50"
+                              className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:border-[#4B0507] hover:text-[#4B0507] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                             >
                               <Plus
                                 className="h-3.5 w-3.5"
@@ -819,7 +819,7 @@ export function CodenamesManager({
                                   type="button"
                                   disabled={isPending}
                                   onClick={closeEditor}
-                                  className="min-h-9 rounded-md border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                  className="min-h-9 rounded-md border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                                 >
                                   Cancel
                                 </button>
@@ -831,7 +831,7 @@ export function CodenamesManager({
                                     (activeMode === "correct" &&
                                       !confirmOverwrite)
                                   }
-                                  className="min-h-9 rounded-md bg-[#4B0507] px-4 py-1.5 text-xs font-medium text-white hover:bg-[#380305] disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="min-h-9 rounded-md bg-[#4B0507] px-4 py-1.5 text-xs font-medium text-white hover:bg-[#380305] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                                 >
                                   {isPending
                                     ? "Saving..."

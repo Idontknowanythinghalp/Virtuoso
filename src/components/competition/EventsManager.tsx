@@ -89,7 +89,7 @@ export function EventsManager({
           role="alert"
           className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
         >
-          Stage 2A competition tables are not available yet. Apply migration{" "}
+          Competition tables are not available yet. Apply migration{" "}
           <code className="font-mono text-xs">
             supabase/migrations/202611160003_stage2a_competition_structure.sql
           </code>{" "}
@@ -416,7 +416,7 @@ export function EventsManager({
                       <td className="px-4 py-3">
                         <Link
                           href={`/events/${event.id}`}
-                          className="group block space-y-0.5 focus-visible:outline-none"
+                          className="group block space-y-0.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                         >
                           <span className="font-mono text-xs font-medium text-[#4B0507]">
                             {event.code}
@@ -456,7 +456,7 @@ export function EventsManager({
                                 onClick={() =>
                                   handleStatusChange(event.id, "archived")
                                 }
-                                className="min-h-8 rounded border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-red-800 hover:bg-red-100 disabled:opacity-60"
+                                className="min-h-8 rounded border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-red-800 hover:bg-red-100 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                               >
                                 Confirm
                               </button>
@@ -464,7 +464,7 @@ export function EventsManager({
                                 type="button"
                                 disabled={isPending}
                                 onClick={() => setConfirmArchiveId(null)}
-                                className="min-h-8 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50"
+                                className="min-h-8 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                               >
                                 Cancel
                               </button>
@@ -479,7 +479,7 @@ export function EventsManager({
                                   onClick={() =>
                                     handleStatusChange(event.id, "active")
                                   }
-                                  className="min-h-8 rounded border border-emerald-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-emerald-800 hover:bg-emerald-50 disabled:opacity-60"
+                                  className="min-h-8 rounded border border-emerald-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-emerald-800 hover:bg-emerald-50 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                                 >
                                   Activate
                                 </button>
@@ -491,7 +491,7 @@ export function EventsManager({
                                   onClick={() =>
                                     handleStatusChange(event.id, "inactive")
                                   }
-                                  className="min-h-8 rounded border border-amber-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-amber-800 hover:bg-amber-50 disabled:opacity-60"
+                                  className="min-h-8 rounded border border-amber-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-amber-800 hover:bg-amber-50 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                                 >
                                   Deactivate
                                 </button>
@@ -501,7 +501,7 @@ export function EventsManager({
                                   type="button"
                                   disabled={isPending}
                                   onClick={() => setConfirmArchiveId(event.id)}
-                                  className="min-h-8 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                  className="min-h-8 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                                 >
                                   Archive
                                 </button>

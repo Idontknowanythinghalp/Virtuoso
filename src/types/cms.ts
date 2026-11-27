@@ -1,6 +1,8 @@
 export type CmsModuleSlug =
   | "competitions"
   | "contingents"
+  | "participants"
+  | "imports"
   | "judging-scoring"
   | "results"
   | "media-vault"

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   ExternalLink,
@@ -44,23 +44,42 @@ export function ParticipantRoundDocuments({
     null,
   );
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const lastTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
-    if (!activeViewer) return;
+    if (activeViewer) {
+      wasOpenRef.current = true;
+      const previousOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      closeButtonRef.current?.focus();
 
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setActiveViewer(null);
+      function handleKeyDown(event: KeyboardEvent) {
+        if (event.key === "Escape") {
+          setActiveViewer(null);
+        }
       }
-    }
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
+      window.addEventListener("keydown", handleKeyDown);
+      return () => {
+        document.body.style.overflow = previousOverflow;
+        window.removeEventListener("keydown", handleKeyDown);
+      };
+    } else if (wasOpenRef.current) {
+      wasOpenRef.current = false;
+      lastTriggerRef.current?.focus();
+    }
   }, [activeViewer]);
 
-  async function openDocument(docId: string, isRefresh = false) {
+  async function openDocument(
+    docId: string,
+    isRefresh = false,
+    triggerElement?: HTMLButtonElement | null,
+  ) {
+    if (triggerElement) {
+      lastTriggerRef.current = triggerElement;
+    }
     setViewError(null);
     if (isRefresh) {
       setIsRefreshing(true);
@@ -165,7 +184,9 @@ export function ParticipantRoundDocuments({
                 <button
                   type="button"
                   disabled={isOpening || openingDocId !== null}
-                  onClick={() => openDocument(doc.id, false)}
+                  onClick={(event) =>
+                    openDocument(doc.id, false, event.currentTarget)
+                  }
                   className="inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 transition-colors hover:border-[#4B0507] hover:text-[#4B0507] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isOpening ? (
@@ -191,9 +212,14 @@ export function ParticipantRoundDocuments({
           role="dialog"
           aria-modal="true"
           aria-labelledby={`viewer-title-${activeViewer.documentId}`}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setActiveViewer(null);
+            }
+          }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-3 sm:p-6"
         >
-          <div className="flex h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl">
+          <div className="flex h-[90dvh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 sm:px-5">
               <div className="min-w-0">
                 <p className="font-mono text-[11px] font-semibold uppercase tracking-wide text-[#4B0507]">
@@ -232,7 +258,9 @@ export function ParticipantRoundDocuments({
                 </a>
 
                 <button
+                  ref={closeButtonRef}
                   type="button"
+                  aria-label="Close document viewer"
                   onClick={() => setActiveViewer(null)}
                   className="inline-flex min-h-9 items-center gap-1 rounded-md bg-[#4B0507] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#380305] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
                 >

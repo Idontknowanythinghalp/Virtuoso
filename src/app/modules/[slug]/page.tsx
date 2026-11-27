@@ -29,6 +29,12 @@ export default async function ModulePlaceholderPage({
   if (slug === "contingents") {
     redirect("/contingents");
   }
+  if (slug === "participants") {
+    redirect("/participants");
+  }
+  if (slug === "imports") {
+    redirect("/imports");
+  }
 
   const cmsModule = getCmsModuleBySlug(slug);
 
@@ -41,13 +47,13 @@ export default async function ModulePlaceholderPage({
       user={sessionUser}
       breadcrumbs={[
         { label: siteConfig.appName, href: "/" },
-        { label: "Planned Modules", href: "/" },
+        { label: "Workspaces", href: "/" },
         { label: cmsModule.title },
       ]}
     >
       <section className="space-y-2 border-b border-slate-200 pb-6">
         <p className="text-xs font-medium text-[#4B0507]">
-          {cmsModule.stageLabel} · {cmsModule.status} (Not Yet Implemented)
+          {cmsModule.stageLabel} · {cmsModule.status}
         </p>
         <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
           {cmsModule.title}
@@ -60,7 +66,7 @@ export default async function ModulePlaceholderPage({
       <AuthNoticeBanner user={sessionUser} />
 
       <section
-        aria-label={`${cmsModule.title} module status`}
+        aria-label={`${cmsModule.title} workspace details`}
         className="rounded-lg border border-slate-200 bg-white p-6 sm:p-8"
       >
         <div className="max-w-2xl space-y-5">
@@ -70,12 +76,11 @@ export default async function ModulePlaceholderPage({
 
           <div className="space-y-2">
             <h2 className="font-display text-lg font-semibold text-slate-900">
-              Module Not Yet Implemented
+              Active Workspace Capabilities
             </h2>
             <p className="text-sm leading-relaxed text-slate-600">
-              This route is protected by organiser authentication and reserved
-              for a later Virtuoso CMS stage beyond Stage 2A. Upcoming stages
-              will cover:
+              These controls are available directly inside the main Virtuoso CMS
+              workspaces:
             </p>
           </div>
 
@@ -91,7 +96,13 @@ export default async function ModulePlaceholderPage({
             ))}
           </ul>
 
-          <div className="pt-2">
+          <div className="flex flex-wrap items-center gap-3 pt-2">
+            <Link
+              href={cmsModule.href}
+              className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#4B0507] px-4 py-2 text-sm font-medium whitespace-nowrap text-white transition-colors hover:bg-[#3A0405] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
+            >
+              <span>Open {cmsModule.shortTitle} Workspace</span>
+            </Link>
             <Link
               href="/"
               className="inline-flex min-h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium whitespace-nowrap text-slate-800 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"

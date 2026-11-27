@@ -11,10 +11,10 @@ export function TeamStandingsNavLink({
     <Link
       href="/team/leaderboard"
       aria-current={isActive ? "page" : undefined}
-      className={`border-b-2 py-2.5 text-sm font-medium transition-colors ${
+      className={`border-b-2 py-2.5 text-sm whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507] ${
         isActive
           ? "border-[#4B0507] font-semibold text-[#4B0507]"
-          : "border-transparent text-slate-600 hover:text-slate-900"
+          : "border-transparent font-medium text-slate-600 hover:text-slate-900"
       }`}
     >
       Leaderboard

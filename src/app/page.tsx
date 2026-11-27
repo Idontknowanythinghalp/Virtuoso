@@ -23,63 +23,51 @@ export const dynamic = "force-dynamic";
 const FOUNDATION_CHECKLIST = [
   {
     id: "01",
-    area: "Next.js App Router & TypeScript",
-    scope: "Strict TypeScript configuration with src/ directory layout",
-    state: "Configured",
+    area: "Organiser Auth & Role Governance",
+    scope: "Super Admin & Event Coordinator profiles, server guards, and account provisioning",
+    state: "Active",
   },
   {
     id: "02",
-    area: "Supabase Auth & SSR Session Refresh",
-    scope: "Browser/server/admin clients, proxy.ts refresh, login and logout",
-    state: "Configured",
+    area: "Row Level Security & Audit Trail",
+    scope: "Versioned SQL migrations, strict RLS policies, and append-only audit logs",
+    state: "Active",
   },
   {
     id: "03",
-    area: "Organiser Roles & Server Guards",
-    scope: "Super Admin & Event Coordinator profiles with requireActiveUser()",
-    state: "Configured",
+    area: "Events, Rounds & Criteria",
+    scope: "Event setup, entry/codename modes, ordered rounds, scoring method, and lock triggers",
+    state: "Active",
   },
   {
     id: "04",
-    area: "Row Level Security & Audit Logs",
-    scope: "Versioned SQL migrations, strict RLS policies, immutable audit trail",
-    state: "Configured",
+    area: "Contingents, Participants & Entries",
+    scope: "Variable team rosters, independent individuals, and strict contingent XOR participant entries",
+    state: "Active",
   },
   {
     id: "05",
-    area: "Events & Rounds",
-    scope: "Event setup, entry/codename modes, ordered rounds, scoring method & lock state",
-    state: "Configured",
+    area: "Registration Imports & Codenames",
+    scope: "CSV/XLSX mapping, server validation, atomic batch commits, and blind codenames",
+    state: "Active",
   },
   {
     id: "06",
-    area: "Judging Criteria & Lock Protection",
-    scope: "Ordered criteria with weights, max points, rubric guidance, and score-lock triggers",
-    state: "Configured",
+    area: "Round Releases & Case PDFs",
+    scope: "Server-authoritative round countdowns, manual reopen controls, and PDF management",
+    state: "Active",
   },
   {
     id: "07",
-    area: "Contingents, Participants & Event Entries",
-    scope: "Variable team sizes, independent individuals, and strict contingent XOR participant entries",
-    state: "Configured",
+    area: "Team Portal & Participant Access",
+    scope: "Contingent login, single-session enforcement, live round windows, and document viewer",
+    state: "Active",
   },
   {
     id: "08",
-    area: "Round Deployment & Submissions",
-    scope: "Case materials, Storage uploads, and codename generation",
-    state: "Not Yet Implemented",
-  },
-  {
-    id: "09",
-    area: "Scoring Engine & Judge Portal",
-    scope: "Score entry, judge verification, tabulation, and standings",
-    state: "Not Yet Implemented",
-  },
-  {
-    id: "10",
-    area: "Competitor Portal",
-    scope: "Separate team login interface for deployed round access",
-    state: "Not Yet Implemented",
+    area: "Overall Leaderboard & Publication",
+    scope: "Draft numeric scores, automatic tie ranking (1, 1, 3), and live snapshot publication",
+    state: "Active",
   },
 ] as const;
 
@@ -185,7 +173,7 @@ export default async function HomePage() {
           role="status"
           className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
         >
-          Stage 2A database tables are not reachable yet. Apply{" "}
+          Competition database tables are not reachable yet. Apply{" "}
           <code className="font-mono text-xs">
             supabase/migrations/202611160003_stage2a_competition_structure.sql
           </code>{" "}
@@ -194,19 +182,18 @@ export default async function HomePage() {
         </div>
       ) : null}
 
-      <section aria-labelledby="stage2a-structure-heading" className="space-y-4">
+      <section aria-labelledby="competition-operations-heading" className="space-y-4">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
           <div>
             <h2
-              id="stage2a-structure-heading"
+              id="competition-operations-heading"
               className="font-display text-lg font-semibold tracking-tight text-slate-900"
             >
-              Competition Structure (Stage 2A)
+              Competition Operations
             </h2>
             <p className="text-sm text-slate-600">
-              Configure events, round progressions, judging rubrics,
-              institutional contingents, independent participants, and event
-              entries.
+              Configure events, round releases, judging rubrics, institutional
+              contingents, participants, and event entries.
             </p>
           </div>
           {!counts.migrationMissing ? (
@@ -345,7 +332,7 @@ export default async function HomePage() {
                     <UserCog className="h-4 w-4" aria-hidden="true" />
                   </span>
                   <span className="text-xs font-medium text-emerald-700">
-                    Active in Stage 1B
+                    Active
                   </span>
                 </div>
                 <h3 className="font-display text-base font-semibold text-slate-900 group-hover:text-[#4B0507]">
@@ -375,7 +362,7 @@ export default async function HomePage() {
                     <FileSearch className="h-4 w-4" aria-hidden="true" />
                   </span>
                   <span className="text-xs font-medium text-emerald-700">
-                    Active in Stage 1B
+                    Active
                   </span>
                 </div>
                 <h3 className="font-display text-base font-semibold text-slate-900 group-hover:text-[#4B0507]">
@@ -406,10 +393,10 @@ export default async function HomePage() {
             id="foundation-status-heading"
             className="font-display text-lg font-semibold tracking-tight text-slate-900"
           >
-            Platform Readiness
+            Platform Capabilities
           </h2>
           <p className="text-sm text-slate-600">
-            Current implementation boundary for Stage 2A.
+            Active Virtuoso CMS modules and governance controls for fest operations.
           </p>
         </div>
 
@@ -421,7 +408,7 @@ export default async function HomePage() {
                   #
                 </th>
                 <th scope="col" className="px-4 py-3">
-                  Layer
+                  Capability
                 </th>
                 <th scope="col" className="px-4 py-3">
                   Scope
@@ -442,13 +429,7 @@ export default async function HomePage() {
                   </td>
                   <td className="px-4 py-3 text-slate-600">{item.scope}</td>
                   <td className="px-4 py-3 text-right">
-                    <span
-                      className={`text-xs font-medium ${
-                        item.state === "Configured"
-                          ? "text-emerald-700"
-                          : "text-slate-500"
-                      }`}
-                    >
+                    <span className="text-xs font-medium text-emerald-700">
                       {item.state}
                     </span>
                   </td>

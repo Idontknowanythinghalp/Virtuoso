@@ -12,24 +12,23 @@ export function ModuleOverviewGrid({ modules }: ModuleOverviewGridProps) {
     <section aria-labelledby="modules-heading" className="space-y-4">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
         <div>
-            <h2
+          <h2
             id="modules-heading"
             className="font-display text-lg font-semibold tracking-tight text-slate-900"
           >
-            CMS Modules
+            Active CMS Workspaces
           </h2>
           <p className="text-sm text-slate-600">
-            Active Stage 2A competition workspaces and reserved surfaces for
-            upcoming Virtuoso CMS stages.
+            Core Virtuoso CMS workflows for managing events, round releases,
+            participants, imports, and published standings.
           </p>
         </div>
         <span className="font-mono text-xs tabular-nums text-slate-500">
-          {modules.filter((m) => m.status === "Active").length} active ·{" "}
-          {modules.filter((m) => m.status !== "Active").length} planned
+          {modules.length} workspaces active
         </span>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {modules.map((mod, index) => (
           <Link
             key={mod.slug}
@@ -41,13 +40,7 @@ export function ModuleOverviewGrid({ modules }: ModuleOverviewGridProps) {
                 <span className="font-mono tabular-nums">
                   {String(index + 1).padStart(2, "0")} · {mod.stageLabel}
                 </span>
-                <span
-                  className={`font-medium ${
-                    mod.status === "Active"
-                      ? "text-emerald-700"
-                      : "text-slate-600"
-                  }`}
-                >
+                <span className="font-medium text-emerald-700">
                   {mod.status}
                 </span>
               </div>
@@ -62,11 +55,7 @@ export function ModuleOverviewGrid({ modules }: ModuleOverviewGridProps) {
             </div>
 
             <div className="mt-5 flex items-center gap-1.5 border-t border-slate-100 pt-3 text-xs font-medium text-slate-700 group-hover:text-[#4B0507]">
-              <span>
-                {mod.status === "Active"
-                  ? "Open workspace"
-                  : "Open module placeholder"}
-              </span>
+              <span>Open workspace</span>
               <ArrowRight
                 className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
                 aria-hidden="true"
