@@ -7,6 +7,7 @@ import { isAdminSupabaseConfigured } from "@/lib/supabase/server-env";
 import {
   assertLocalSignOutResult,
   authenticateTeamWithDeps,
+  buildTeamLoginRedirectPath,
   escapePostgresLikePattern,
   logoutTeamWithDeps,
   resolveActiveTeamSessionWithDeps,
@@ -67,6 +68,36 @@ export async function signInTeamWithPassword(
     rawPassword,
     rawNextPath,
     deps: {
+      async hasCurrentOrganiserSession() {
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+        if (userError) {
+          console.error(
+            "[team-auth] current session user check failed:",
+            userError.message,
+          );
+          return { isOrganiser: false, error: userError.message };
+        }
+        if (!user) {
+          return { isOrganiser: false, error: null };
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("id", user.id)
+          .maybeSingle<{ id: string }>();
+
+        if (profileError) {
+          console.error("[team-auth] current session organiser check failed");
+          return { isOrganiser: false, error: profileError.message };
+        }
+
+        return { isOrganiser: Boolean(profile?.id), error: null };
+      },
+
       async findContingentsByCode(normalizedTeamCode: string) {
         const pattern = escapePostgresLikePattern(normalizedTeamCode);
         const { data, error } = await admin
@@ -337,16 +368,18 @@ export async function requireActiveTeam(options?: {
     redirect("/team/login?error=organiser_account");
   }
 
-  if (result.reason === "invalid_team_session") {
-    redirect("/team/login?error=session_ended");
-  }
-
   const safeNext = sanitizeTeamRedirectPath(options?.nextPath, "/team");
-  if (safeNext !== "/team") {
-    redirect(`/team/login?next=${encodeURIComponent(safeNext)}`);
+
+  if (result.reason === "invalid_team_session") {
+    redirect(
+      buildTeamLoginRedirectPath({
+        error: "session_ended",
+        nextPath: safeNext,
+      }),
+    );
   }
 
-  redirect("/team/login");
+  redirect(buildTeamLoginRedirectPath({ nextPath: safeNext }));
 }
 
 /**

@@ -226,6 +226,67 @@ export async function inspectUploadedCompetitionDocumentObject(params: {
   }
 }
 
+export interface SignedViewCreationResult {
+  ok: boolean;
+  viewUrl?: string;
+  expiresInSeconds?: number;
+  error?: string;
+}
+
+export function clampCompetitionDocumentSignedViewTtl(
+  expiresInSeconds?: number,
+): number {
+  if (
+    typeof expiresInSeconds === "number" &&
+    Number.isFinite(expiresInSeconds)
+  ) {
+    return Math.min(Math.max(Math.floor(expiresInSeconds), 15), 120);
+  }
+  return 60;
+}
+
+/**
+ * Generates a short-lived signed URL for inline browser viewing of a private PDF.
+ * Does not pass the download option (allowing inline PDF viewing) and never logs
+ * or returns the service-role key or signed URL token.
+ */
+export async function createCompetitionDocumentSignedViewUrl(params: {
+  objectPath: string;
+  expiresInSeconds?: number;
+}): Promise<SignedViewCreationResult> {
+  try {
+    const clampedTtl = clampCompetitionDocumentSignedViewTtl(
+      params.expiresInSeconds,
+    );
+    const admin = createSupabaseAdminClient();
+    const { data, error } = await admin.storage
+      .from(COMPETITION_DOCUMENTS_BUCKET)
+      .createSignedUrl(params.objectPath, clampedTtl);
+
+    if (error || !data?.signedUrl) {
+      console.error(
+        "[documents-storage] createSignedUrl failed:",
+        error?.message ?? "Missing signed view URL",
+      );
+      return {
+        ok: false,
+        error: error?.message ?? "Unable to generate temporary document view link.",
+      };
+    }
+
+    return {
+      ok: true,
+      viewUrl: data.signedUrl,
+      expiresInSeconds: clampedTtl,
+    };
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Unknown signed view URL error";
+    console.error("[documents-storage] unexpected createSignedUrl error:", message);
+    return { ok: false, error: message };
+  }
+}
+
 /**
  * Removes an object from the private competition-documents bucket.
  */

@@ -5,13 +5,19 @@ import { logoutTeamAction } from "@/app/actions/team-auth";
 import { requireActiveTeam } from "@/lib/auth/team-guards";
 import { siteConfig } from "@/lib/site-config";
 import { loadTeamCurrentRoundsForTeam } from "@/lib/team-portal/rounds-read";
+import { loadParticipantDocumentsForVisibleRounds } from "@/lib/team-portal/documents-read";
 import { BrandMark } from "@/components/cms/BrandMark";
+import { ParticipantRoundDocuments } from "@/components/team/ParticipantRoundDocuments";
+import { RefreshRoundsButton } from "@/components/team/RefreshRoundsButton";
 
 export const dynamic = "force-dynamic";
 
 export default async function TeamCurrentRoundsPage() {
   const team = await requireActiveTeam({ nextPath: "/team/rounds" });
   const roundsResult = await loadTeamCurrentRoundsForTeam(team);
+  const documentsResult = roundsResult.ok
+    ? await loadParticipantDocumentsForVisibleRounds(team, roundsResult.rounds)
+    : null;
 
   return (
     <div className="flex min-h-screen flex-col justify-between bg-[#F8FAFC]">
@@ -95,16 +101,19 @@ export default async function TeamCurrentRoundsPage() {
           aria-labelledby="current-rounds-heading"
           className="space-y-4"
         >
-          <div className="space-y-1">
-            <h1
-              id="current-rounds-heading"
-              className="font-display text-xl font-bold text-slate-900"
-            >
-              Current Rounds
-            </h1>
-            <p className="text-sm text-slate-600">
-              Competition rounds that are currently open for participating teams.
-            </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="space-y-1">
+              <h1
+                id="current-rounds-heading"
+                className="font-display text-xl font-bold text-slate-900"
+              >
+                Current Rounds
+              </h1>
+              <p className="text-sm text-slate-600">
+                Competition rounds that are currently open for participating teams.
+              </p>
+            </div>
+            <RefreshRoundsButton />
           </div>
 
           {!roundsResult.ok ? (
@@ -178,6 +187,23 @@ export default async function TeamCurrentRoundsPage() {
                           : "No round description has been added yet."}
                       </p>
                     </div>
+
+                    <ParticipantRoundDocuments
+                      eventCode={item.eventCode}
+                      roundNumber={item.roundNumber}
+                      roundName={item.roundName}
+                      documents={
+                        documentsResult?.ok
+                          ? (documentsResult.documentsByRoundId[item.roundId] ??
+                            [])
+                          : []
+                      }
+                      loadError={
+                        documentsResult && !documentsResult.ok
+                          ? documentsResult.error
+                          : null
+                      }
+                    />
                   </article>
                 </li>
               ))}

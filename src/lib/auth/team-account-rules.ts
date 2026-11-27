@@ -566,6 +566,9 @@ export const TEAM_SESSION_START_ERROR =
 export const TEAM_SESSION_CLEANUP_ERROR =
   "Unable to finish signing in or clear the temporary device session. Please clear your browser cookies and try again." as const;
 
+export const ORGANISER_TEAM_LOGIN_COLLISION_ERROR =
+  "You are currently signed in with an organiser account. Return to the Organiser CMS or sign out of your organiser session before signing in as a team." as const;
+
 export function assertLocalSignOutResult(result: {
   error: { message?: string } | null;
 }): void {
@@ -621,6 +624,7 @@ export function sanitizeTeamRedirectPath(
     !trimmed.startsWith("/team") ||
     trimmed.startsWith("//") ||
     trimmed.includes("\\") ||
+    trimmed.includes("..") ||
     /[\u0000-\u001f\u007f]/.test(trimmed)
   ) {
     return fallback;
@@ -631,11 +635,35 @@ export function sanitizeTeamRedirectPath(
     return fallback;
   }
 
+  if (
+    pathOnly
+      .split("/")
+      .some((segment) => segment === "." || segment === "..")
+  ) {
+    return fallback;
+  }
+
   if (pathOnly === "/team/login" || pathOnly.startsWith("/team/login/")) {
     return fallback;
   }
 
   return trimmed;
+}
+
+export function buildTeamLoginRedirectPath(params: {
+  error?: string | null;
+  nextPath?: string | null;
+}): string {
+  const searchParams = new URLSearchParams();
+  if (params.error) {
+    searchParams.set("error", params.error);
+  }
+  const safeNext = sanitizeTeamRedirectPath(params.nextPath, "/team");
+  if (safeNext !== "/team") {
+    searchParams.set("next", safeNext);
+  }
+  const query = searchParams.toString();
+  return query ? `/team/login?${query}` : "/team/login";
 }
 
 export function escapePostgresLikePattern(value: string): string {
@@ -678,6 +706,10 @@ export interface TeamAccountLookupRow {
 }
 
 export interface TeamLoginDeps {
+  hasCurrentOrganiserSession?: () => Promise<{
+    isOrganiser: boolean;
+    error: string | null;
+  }>;
   findContingentsByCode: (
     normalizedTeamCode: string,
   ) => Promise<{ rows: TeamContingentLookupRow[]; error: string | null }>;
@@ -727,6 +759,16 @@ export async function authenticateTeamWithDeps(params: {
   rawNextPath?: string | null;
   deps: TeamLoginDeps;
 }): Promise<TeamLoginOutcome> {
+  if (params.deps.hasCurrentOrganiserSession) {
+    const currentOrganiser = await params.deps.hasCurrentOrganiserSession();
+    if (currentOrganiser.error) {
+      return { ok: false, error: TEAM_UNAVAILABLE_ERROR };
+    }
+    if (currentOrganiser.isOrganiser) {
+      return { ok: false, error: ORGANISER_TEAM_LOGIN_COLLISION_ERROR };
+    }
+  }
+
   const inputCheck = validateTeamLoginInputs(
     params.rawTeamCode,
     params.rawPassword,

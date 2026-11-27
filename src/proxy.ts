@@ -1,6 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { sanitizeTeamRedirectPath } from "@/lib/auth/team-account-rules";
+import {
+  buildTeamLoginRedirectPath,
+  sanitizeTeamRedirectPath,
+} from "@/lib/auth/team-account-rules";
 import { getPublicSupabaseConfig } from "@/lib/env";
 
 const PUBLIC_PATHS = new Set(["/login", "/team/login"]);
@@ -86,12 +89,13 @@ export async function proxy(request: NextRequest) {
     }
 
     if (isTeamRoute(pathname)) {
+      const target = buildTeamLoginRedirectPath({
+        nextPath: `${pathname}${search}`,
+      });
+      const [targetPath, targetQuery] = target.split("?", 2);
       const teamLoginUrl = request.nextUrl.clone();
-      teamLoginUrl.pathname = "/team/login";
-      teamLoginUrl.search = "";
-      if (pathname !== "/team") {
-        teamLoginUrl.searchParams.set("next", `${pathname}${search}`);
-      }
+      teamLoginUrl.pathname = targetPath;
+      teamLoginUrl.search = targetQuery ? `?${targetQuery}` : "";
       return redirectWithCookies(teamLoginUrl, response);
     }
 
@@ -133,24 +137,39 @@ export async function proxy(request: NextRequest) {
         if (signOutErr) {
           console.error("[team-auth] proxy local sign-out cleanup failed");
         }
+        const target = buildTeamLoginRedirectPath({
+          error: "session_ended",
+          nextPath: `${pathname}${search}`,
+        });
+        const [targetPath, targetQuery] = target.split("?", 2);
         const teamLoginUrl = request.nextUrl.clone();
-        teamLoginUrl.pathname = "/team/login";
-        teamLoginUrl.search = "";
-        teamLoginUrl.searchParams.set("error", "session_ended");
+        teamLoginUrl.pathname = targetPath;
+        teamLoginUrl.search = targetQuery ? `?${targetQuery}` : "";
         return redirectWithCookies(teamLoginUrl, response);
       }
 
       return response;
     }
 
-    if (pathname === "/team/login" && !hasAuthErrorParam) {
+    if (pathname === "/team/login") {
       const { data: ownProfile, error: profileErr } = await supabase
         .from("profiles")
         .select("id")
         .eq("id", user.id)
         .maybeSingle<{ id: string }>();
 
-      if (!profileErr && !ownProfile) {
+      if (!profileErr && ownProfile) {
+        if (request.nextUrl.searchParams.get("error") !== "organiser_account") {
+          const teamLoginUrl = request.nextUrl.clone();
+          teamLoginUrl.pathname = "/team/login";
+          teamLoginUrl.search = "";
+          teamLoginUrl.searchParams.set("error", "organiser_account");
+          return redirectWithCookies(teamLoginUrl, response);
+        }
+        return response;
+      }
+
+      if (!hasAuthErrorParam && !profileErr && !ownProfile) {
         const { data: isActiveTeam, error: teamRpcErr } = await supabase.rpc(
           "is_active_team_session",
         );

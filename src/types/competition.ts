@@ -309,3 +309,35 @@ export interface UploadedStorageObjectInspection {
   headerBytes: Uint8Array | null;
   error: string | null;
 }
+
+export interface ParticipantRoundDocumentItem {
+  id: string;
+  eventId: string;
+  roundId: string;
+  title: string;
+  fileSizeBytes: number;
+  updatedAt: string;
+}
+
+export type ParticipantDocumentViewDenyReason =
+  | "unauthenticated"
+  | "organiser_forbidden"
+  | "invalid_team_session"
+  | "not_visible"
+  | "not_found"
+  | "error";
+
+export type ParticipantDocumentViewResult =
+  | {
+      ok: true;
+      documentId: string;
+      title: string;
+      viewUrl: string;
+      expiresInSeconds: number;
+    }
+  | {
+      ok: false;
+      message: string;
+      reason: ParticipantDocumentViewDenyReason;
+    };
+

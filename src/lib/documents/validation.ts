@@ -3,6 +3,7 @@ import { validateUuid, type ValidationResult } from "@/lib/competition/validatio
 export const COMPETITION_DOCUMENTS_BUCKET = "competition-documents";
 export const MAX_COMPETITION_DOCUMENT_BYTES = 25 * 1024 * 1024; // 25 MiB
 export const ALLOWED_COMPETITION_DOCUMENT_MIME = "application/pdf";
+export const PARTICIPANT_DOCUMENT_VIEW_TTL_SECONDS = 60;
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

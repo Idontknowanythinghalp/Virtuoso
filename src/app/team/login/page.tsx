@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { isPublicSupabaseConfigured } from "@/lib/env";
 import { isAdminSupabaseConfigured } from "@/lib/supabase/server-env";
@@ -40,16 +41,25 @@ export default async function TeamLoginPage({
   const serverConfigured = publicConfigured && adminConfigured;
   const nextPath = sanitizeTeamRedirectPath(params.next, "/team");
 
-  if (serverConfigured && !params.error) {
+  let isSignedInAsOrganiser = false;
+
+  if (serverConfigured) {
     const activeContext = await resolveCurrentTeamContext();
-    if (activeContext.ok) {
+    if (activeContext.ok && !params.error) {
       redirect(nextPath);
+    }
+    if (!activeContext.ok && activeContext.reason === "organiser_forbidden") {
+      isSignedInAsOrganiser = true;
     }
   }
 
+  const effectiveErrorKey = isSignedInAsOrganiser
+    ? "organiser_account"
+    : params.error;
+
   const errorBanner =
-    params.error && TEAM_ERROR_MESSAGES[params.error]
-      ? TEAM_ERROR_MESSAGES[params.error]
+    effectiveErrorKey && TEAM_ERROR_MESSAGES[effectiveErrorKey]
+      ? TEAM_ERROR_MESSAGES[effectiveErrorKey]
       : !serverConfigured
         ? TEAM_ERROR_MESSAGES.config
         : null;
@@ -114,7 +124,24 @@ export default async function TeamLoginPage({
               </div>
             ) : null}
 
-            <TeamLoginForm nextPath={nextPath} disabled={!serverConfigured} />
+            {isSignedInAsOrganiser ? (
+              <div className="space-y-4 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                <p className="leading-relaxed">
+                  Team sign-in is disabled in this browser window while your
+                  organiser session is active so your CMS session is not
+                  overwritten. Sign out from the Organiser CMS or open a
+                  private browser window to sign in as a team.
+                </p>
+                <Link
+                  href="/"
+                  className="inline-flex min-h-10 w-full items-center justify-center rounded-md bg-[#4B0507] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#380305] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507] focus-visible:ring-offset-2"
+                >
+                  Return to Organiser CMS
+                </Link>
+              </div>
+            ) : (
+              <TeamLoginForm nextPath={nextPath} disabled={!serverConfigured} />
+            )}
           </div>
 
           <p className="mt-6 border-t border-slate-100 pt-4 text-xs leading-relaxed text-slate-500">
