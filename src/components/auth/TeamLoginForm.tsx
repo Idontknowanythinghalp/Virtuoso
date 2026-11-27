@@ -47,7 +47,7 @@ export function TeamLoginForm({
       {state.error ? (
         <div
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+          className="rounded-md border border-red-400/45 bg-[#350A0A] px-4 py-3 text-sm text-red-200"
         >
           {state.error}
         </div>
@@ -56,7 +56,7 @@ export function TeamLoginForm({
       <div className="space-y-1.5">
         <label
           htmlFor="teamCode"
-          className="block text-sm font-medium text-slate-800"
+          className="block text-sm font-medium text-[#F5F0EC]"
         >
           Team Code
         </label>
@@ -77,14 +77,14 @@ export function TeamLoginForm({
             setTeamCode((current) => normalizeTeamCodeInput(current))
           }
           placeholder="e.g. SJCC-01"
-          className="block min-h-11 w-full rounded-md border border-[#D8D2CE] bg-white px-3.5 py-2 font-mono text-sm uppercase text-slate-900 placeholder:normal-case placeholder:font-sans placeholder:text-slate-400 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20 disabled:cursor-not-allowed disabled:bg-slate-100"
+          className="block min-h-11 w-full rounded-md border border-[#542525] bg-[#200000] px-3.5 py-2 font-mono text-sm uppercase text-[#F5F0EC] placeholder:normal-case placeholder:font-sans placeholder:text-[#B9AAA5]/60 focus:border-[#D9AD61] focus:outline-none focus:ring-2 focus:ring-[#D9AD61]/25 disabled:cursor-not-allowed disabled:bg-[#350A0A]/60"
         />
       </div>
 
       <div className="space-y-1.5">
         <label
           htmlFor="password"
-          className="block text-sm font-medium text-slate-800"
+          className="block text-sm font-medium text-[#F5F0EC]"
         >
           Password
         </label>
@@ -97,7 +97,7 @@ export function TeamLoginForm({
             required
             disabled={disabled || isPending}
             placeholder="Enter your team password"
-            className="block min-h-11 w-full rounded-md border border-[#D8D2CE] bg-white py-2 pl-3.5 pr-11 text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#4B0507] focus:outline-none focus:ring-2 focus:ring-[#4B0507]/20 disabled:cursor-not-allowed disabled:bg-slate-100"
+            className="block min-h-11 w-full rounded-md border border-[#542525] bg-[#200000] py-2 pl-3.5 pr-11 text-sm text-[#F5F0EC] placeholder:text-[#B9AAA5]/60 focus:border-[#D9AD61] focus:outline-none focus:ring-2 focus:ring-[#D9AD61]/25 disabled:cursor-not-allowed disabled:bg-[#350A0A]/60"
           />
           <button
             type="button"
@@ -105,7 +105,7 @@ export function TeamLoginForm({
             onClick={() => setShowPassword((prev) => !prev)}
             aria-label={showPassword ? "Hide password" : "Show password"}
             aria-pressed={showPassword}
-            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-md text-slate-500 transition-colors hover:text-[#4B0507] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507] disabled:cursor-not-allowed disabled:opacity-50"
+            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-md text-[#B9AAA5] transition-colors hover:text-[#D9AD61] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D9AD61] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {showPassword ? (
               <EyeOff className="h-4 w-4" aria-hidden="true" />
@@ -119,7 +119,7 @@ export function TeamLoginForm({
       <button
         type="submit"
         disabled={disabled || isPending}
-        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[#4B0507] px-4 py-2.5 text-sm font-semibold whitespace-nowrap text-white transition-colors hover:bg-[#380305] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[#D9AD61] px-4 py-2.5 text-sm font-semibold whitespace-nowrap text-[#200000] transition-colors hover:bg-[#E4BC77] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D9AD61] focus-visible:ring-offset-2 focus-visible:ring-offset-[#2B0808] disabled:cursor-not-allowed disabled:opacity-60"
       >
         <LockKeyhole className="h-4 w-4 shrink-0" aria-hidden="true" />
         <span>{isPending ? "Signing in..." : "Sign In to Team Portal"}</span>

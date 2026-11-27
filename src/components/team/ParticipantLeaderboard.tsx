@@ -42,15 +42,15 @@ interface ParticipantLeaderboardProps {
 
 function getRankBadgeClasses(rank: number | null): string {
   if (rank === 1) {
-    return "border-[#D9AD61] bg-[#200000] text-[#D9AD61]";
+    return "border-[#D9AD61] bg-[#D9AD61] text-[#200000]";
   }
   if (rank === 2) {
-    return "border-slate-300 bg-slate-100 text-slate-900";
+    return "border-[#B9AAA5]/60 bg-[#401010] text-[#F5F0EC]";
   }
   if (rank === 3) {
-    return "border-[#D6B89C] bg-[#F7EFE6] text-[#6B3F1D]";
+    return "border-[#C08A5A]/55 bg-[#350A0A] text-[#E6C3A1]";
   }
-  return "border-[#E5E1DF] bg-[#FAF8F6] text-slate-800";
+  return "border-[#542525] bg-[#350A0A] text-[#F5F0EC]";
 }
 
 export function ParticipantLeaderboardView({
@@ -265,13 +265,13 @@ export function ParticipantLeaderboardView({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 rounded-lg border border-[#E5E1DF] bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+      <div className="flex flex-col gap-3 rounded-lg border border-[#542525] bg-[#2B0808] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-[#B9AAA5]">
           {isAutoUpdating ? (
             <span
               role="status"
               aria-live="polite"
-              className="inline-flex items-center gap-1.5 font-semibold text-[#4B0507]"
+              className="inline-flex items-center gap-1.5 font-semibold text-[#D9AD61]"
             >
               <RefreshCw
                 className="h-3.5 w-3.5 shrink-0 animate-spin"
@@ -293,7 +293,7 @@ export function ParticipantLeaderboardView({
           onClick={handleRefreshLeaderboard}
           disabled={isRefreshing || isAutoUpdating}
           aria-busy={isRefreshing || isAutoUpdating}
-          className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 self-start rounded-md border border-[#4B0507]/30 bg-white px-3.5 py-2 text-xs font-semibold whitespace-nowrap text-[#4B0507] transition-colors hover:border-[#4B0507] hover:bg-[#4B0507] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507] disabled:cursor-not-allowed disabled:opacity-60 sm:self-auto"
+          className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 self-start rounded-md border border-[#D9AD61]/60 bg-[#401010] px-3.5 py-2 text-xs font-semibold whitespace-nowrap text-[#F5F0EC] transition-colors hover:border-[#D9AD61] hover:bg-[#D9AD61] hover:text-[#200000] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D9AD61] focus-visible:ring-offset-2 focus-visible:ring-offset-[#2B0808] disabled:cursor-not-allowed disabled:opacity-60 sm:self-auto"
         >
           <RefreshCw
             className={`h-3.5 w-3.5 shrink-0 ${isRefreshing || isAutoUpdating ? "animate-spin" : ""}`}
@@ -312,10 +312,10 @@ export function ParticipantLeaderboardView({
       {refreshError ? (
         <div
           role="alert"
-          className="flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
+          className="flex items-start gap-2.5 rounded-lg border border-red-400/45 bg-[#350A0A] px-4 py-3 text-sm text-red-200"
         >
           <AlertTriangle
-            className="mt-0.5 h-4 w-4 shrink-0 text-red-700"
+            className="mt-0.5 h-4 w-4 shrink-0 text-red-300"
             aria-hidden="true"
           />
           <span>{refreshError}</span>
@@ -323,14 +323,14 @@ export function ParticipantLeaderboardView({
       ) : null}
 
       {leaderboards.length === 0 ? (
-        <div className="rounded-lg border border-[#E5E1DF] bg-white p-8 text-center sm:p-12">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md border border-[#D9AD61]/40 bg-[#FDF9F0] text-[#4B0507]">
+        <div className="rounded-lg border border-[#542525] bg-[#2B0808] p-8 text-center sm:p-12">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md border border-[#542525] bg-[#350A0A] text-[#D9AD61]">
             <ClipboardList className="h-6 w-6" aria-hidden="true" />
           </div>
-          <h2 className="mt-4 font-display text-base font-bold text-slate-900 sm:text-lg">
+          <h2 className="mt-4 font-display text-base font-bold text-[#F5F0EC] sm:text-lg">
             No Registered Events
           </h2>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-600">
+          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-[#B9AAA5]">
             Your contingent does not currently hold any active event
             registrations. Published standings will appear here once
             registrations are active.
@@ -340,7 +340,7 @@ export function ParticipantLeaderboardView({
         <>
           {leaderboards.length > 1 ? (
             <section aria-label="Event selector" className="space-y-2">
-              <p className="text-xs font-semibold tracking-wide text-slate-600">
+              <p className="text-xs font-semibold tracking-wide text-[#D9AD61]">
                 Select Competition Event
               </p>
               <div
@@ -358,17 +358,13 @@ export function ParticipantLeaderboardView({
                       role="tab"
                       aria-selected={isSelected}
                       onClick={() => setSelectedEventId(lb.eventId)}
-                      className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md border px-3.5 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507] ${
+                      className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md border px-3.5 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D9AD61] ${
                         isSelected
-                          ? "border-[#4B0507] bg-[#4B0507] text-white"
-                          : "border-[#E5E1DF] bg-white text-slate-700 hover:border-[#4B0507]/40 hover:text-slate-900"
+                          ? "border-[#D9AD61] bg-[#401010] text-[#F5F0EC]"
+                          : "border-[#542525] bg-[#2B0808] text-[#B9AAA5] hover:border-[#D9AD61]/60 hover:bg-[#350A0A] hover:text-[#F5F0EC]"
                       }`}
                     >
-                      <span
-                        className={`font-mono text-xs font-semibold ${
-                          isSelected ? "text-[#D9AD61]" : "text-[#4B0507]"
-                        }`}
-                      >
+                      <span className="font-mono text-xs font-semibold text-[#D9AD61]">
                         {lb.eventCode}
                       </span>
                       <span className="max-w-[160px] truncate sm:max-w-none">
@@ -379,17 +375,17 @@ export function ParticipantLeaderboardView({
                           className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${
                             isSelected
                               ? "bg-[#D9AD61] text-[#200000]"
-                              : "border border-emerald-200 bg-emerald-50 text-emerald-800"
+                              : "border border-emerald-400/40 bg-emerald-950/60 text-emerald-300"
                           }`}
                         >
                           Published
                         </span>
                       ) : (
                         <span
-                          className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                          className={`rounded border border-[#542525] px-1.5 py-0.5 text-[11px] font-medium ${
                             isSelected
-                              ? "bg-white/15 text-white/85"
-                              : "bg-slate-100 text-slate-600"
+                              ? "bg-[#2B0808] text-[#B9AAA5]"
+                              : "bg-[#350A0A] text-[#B9AAA5]"
                           }`}
                         >
                           Pending
@@ -404,22 +400,22 @@ export function ParticipantLeaderboardView({
 
           {activeLeaderboard ? (
             <div className="space-y-4">
-              <div className="flex flex-col gap-3 rounded-lg border border-[#E5E1DF] bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 rounded-lg border border-[#542525] bg-[#2B0808] p-5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-xs font-bold tracking-wide text-[#4B0507]">
+                    <span className="font-mono text-xs font-bold tracking-wide text-[#D9AD61]">
                       {activeLeaderboard.eventCode}
                     </span>
-                    <span className="text-slate-300" aria-hidden="true">
+                    <span className="text-[#542525]" aria-hidden="true">
                       ·
                     </span>
-                    <h2 className="font-display text-lg font-bold text-slate-900 sm:text-xl">
+                    <h2 className="font-display text-lg font-bold text-[#F5F0EC] sm:text-xl">
                       {activeLeaderboard.eventName}
                     </h2>
                   </div>
                   {activeLeaderboard.isPublished &&
                   activeLeaderboard.publishedAt ? (
-                    <p className="font-mono text-xs tabular-nums text-slate-500">
+                    <p className="font-mono text-xs tabular-nums text-[#B9AAA5]">
                       Last published:{" "}
                       {formatIstTimestamp(activeLeaderboard.publishedAt)}
                     </p>
@@ -428,9 +424,9 @@ export function ParticipantLeaderboardView({
 
                 <div className="shrink-0">
                   {activeLeaderboard.isPublished ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-md border border-[#D9AD61]/50 bg-[#FDF9F0] px-3 py-1.5 text-xs font-semibold text-[#4B0507]">
+                    <span className="inline-flex items-center gap-1.5 rounded-md border border-[#D9AD61]/50 bg-[#350A0A] px-3 py-1.5 text-xs font-semibold text-[#D9AD61]">
                       <Trophy
-                        className="h-3.5 w-3.5 text-[#9A7126]"
+                        className="h-3.5 w-3.5 text-[#D9AD61]"
                         aria-hidden="true"
                       />
                       <span>
@@ -442,7 +438,7 @@ export function ParticipantLeaderboardView({
                       </span>
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1.5 rounded-md border border-[#E5E1DF] bg-[#FAF8F6] px-3 py-1.5 text-xs font-medium text-slate-600">
+                    <span className="inline-flex items-center gap-1.5 rounded-md border border-[#542525] bg-[#350A0A] px-3 py-1.5 text-xs font-medium text-[#B9AAA5]">
                       Not Published
                     </span>
                   )}
@@ -450,16 +446,16 @@ export function ParticipantLeaderboardView({
               </div>
 
               {!activeLeaderboard.isPublished ? (
-                <div className="rounded-lg border border-[#E5E1DF] bg-white p-8 text-center sm:p-12">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md border border-[#D9AD61]/45 bg-[#FDF9F0] text-[#4B0507]">
+                <div className="rounded-lg border border-[#542525] bg-[#2B0808] p-8 text-center sm:p-12">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md border border-[#542525] bg-[#350A0A] text-[#D9AD61]">
                     <Trophy className="h-6 w-6" aria-hidden="true" />
                   </div>
-                  <h3 className="mt-4 font-display text-base font-bold text-slate-900 sm:text-lg">
+                  <h3 className="mt-4 font-display text-base font-bold text-[#F5F0EC] sm:text-lg">
                     No Leaderboard Published Yet
                   </h3>
-                  <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-600">
+                  <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-[#B9AAA5]">
                     Official standings for{" "}
-                    <span className="font-semibold text-slate-900">
+                    <span className="font-semibold text-[#F5F0EC]">
                       {activeLeaderboard.eventCode} ·{" "}
                       {activeLeaderboard.eventName}
                     </span>{" "}
@@ -468,14 +464,14 @@ export function ParticipantLeaderboardView({
                   </p>
                 </div>
               ) : activeLeaderboard.entries.length === 0 ? (
-                <div className="rounded-lg border border-[#E5E1DF] bg-white p-8 text-center sm:p-12">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md border border-[#E5E1DF] bg-[#FAF8F6] text-slate-500">
+                <div className="rounded-lg border border-[#542525] bg-[#2B0808] p-8 text-center sm:p-12">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md border border-[#542525] bg-[#350A0A] text-[#B9AAA5]">
                     <Trophy className="h-6 w-6" aria-hidden="true" />
                   </div>
-                  <h3 className="mt-4 font-display text-base font-bold text-slate-900 sm:text-lg">
+                  <h3 className="mt-4 font-display text-base font-bold text-[#F5F0EC] sm:text-lg">
                     No Standings Entries Yet
                   </h3>
-                  <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-600">
+                  <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-[#B9AAA5]">
                     This leaderboard has been published, but no contingent
                     rankings are currently listed.
                   </p>
@@ -500,8 +496,8 @@ export function ParticipantLeaderboardView({
                           key={entry.id}
                           className={`rounded-lg border p-4 ${
                             isMyContingent
-                              ? "border-[#D9AD61] bg-[#FDF8EC]"
-                              : "border-[#E5E1DF] bg-white"
+                              ? "border-[#D9AD61]/75 bg-[#350A0A]"
+                              : "border-[#542525] bg-[#2B0808]"
                           }`}
                         >
                           <div className="flex items-start justify-between gap-3">
@@ -513,17 +509,17 @@ export function ParticipantLeaderboardView({
                                   #{entry.rank}
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center justify-center rounded border border-[#E5E1DF] bg-[#FAF8F6] px-2.5 py-1 text-xs font-medium text-slate-600">
+                                <span className="inline-flex items-center justify-center rounded border border-[#542525] bg-[#350A0A] px-2.5 py-1 text-xs font-medium text-[#B9AAA5]">
                                   Unranked
                                 </span>
                               )}
                               {isTied ? (
-                                <span className="rounded border border-[#D9AD61]/50 bg-[#FDF6E7] px-2 py-0.5 text-[11px] font-semibold text-[#6E4D12]">
+                                <span className="rounded border border-[#D9AD61]/45 bg-[#401010] px-2 py-0.5 text-[11px] font-semibold text-[#D9AD61]">
                                   Tied
                                 </span>
                               ) : null}
                               {isMyContingent ? (
-                                <span className="rounded bg-[#4B0507] px-2 py-0.5 text-[11px] font-semibold text-white">
+                                <span className="rounded bg-[#D9AD61] px-2 py-0.5 text-[11px] font-semibold text-[#200000]">
                                   Your Team
                                 </span>
                               ) : null}
@@ -531,15 +527,15 @@ export function ParticipantLeaderboardView({
 
                             <div className="shrink-0 text-right">
                               {entry.score !== null ? (
-                                <span className="inline-block rounded-md border border-[#E5E1DF] bg-[#FAF8F6] px-2.5 py-1 font-mono text-sm font-bold tabular-nums text-slate-900">
+                                <span className="inline-block rounded-md border border-[#542525] bg-[#401010] px-2.5 py-1 font-mono text-sm font-bold tabular-nums text-[#F5F0EC]">
                                   {formatLeaderboardScore(entry.score)}
                                 </span>
                               ) : entry.displayLabel ? (
-                                <span className="inline-block rounded-md border border-[#E5E1DF] bg-[#FAF8F6] px-2.5 py-1 font-mono text-sm font-bold text-slate-900">
+                                <span className="inline-block rounded-md border border-[#542525] bg-[#401010] px-2.5 py-1 font-mono text-sm font-bold text-[#F5F0EC]">
                                   {entry.displayLabel}
                                 </span>
                               ) : (
-                                <span className="inline-block rounded-md border border-[#E5E1DF] bg-[#FAF8F6] px-2.5 py-1 text-xs font-medium text-slate-500">
+                                <span className="inline-block rounded-md border border-[#542525] bg-[#350A0A] px-2.5 py-1 text-xs font-medium text-[#B9AAA5]">
                                   No score
                                 </span>
                               )}
@@ -547,13 +543,13 @@ export function ParticipantLeaderboardView({
                           </div>
 
                           <div className="mt-3 space-y-0.5">
-                            <p className="font-mono text-xs font-semibold text-[#4B0507]">
+                            <p className="font-mono text-xs font-semibold text-[#D9AD61]">
                               {entry.contingentCode}
                             </p>
-                            <p className="font-display text-sm font-bold text-slate-900">
+                            <p className="font-display text-sm font-bold text-[#F5F0EC]">
                               {entry.contingentName}
                             </p>
-                            <p className="text-xs text-slate-600">
+                            <p className="text-xs text-[#B9AAA5]">
                               {entry.institutionName}
                             </p>
                           </div>
@@ -563,10 +559,10 @@ export function ParticipantLeaderboardView({
                   </ul>
 
                   {/* Desktop & tablet table */}
-                  <div className="hidden overflow-hidden rounded-lg border border-[#E5E1DF] bg-white md:block">
+                  <div className="hidden overflow-hidden rounded-lg border border-[#542525] bg-[#2B0808] md:block">
                     <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-[#E5E1DF] text-left">
-                        <thead className="bg-[#200000] text-xs font-semibold tracking-wider text-white/90 uppercase">
+                      <table className="min-w-full divide-y divide-[#542525] text-left">
+                        <thead className="bg-[#200000] text-xs font-semibold tracking-wider text-[#D9AD61] uppercase">
                           <tr>
                             <th scope="col" className="w-36 px-6 py-3.5">
                               Rank
@@ -582,7 +578,7 @@ export function ParticipantLeaderboardView({
                             </th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-[#E5E1DF] text-sm">
+                        <tbody className="divide-y divide-[#542525] text-sm">
                           {activeLeaderboard.entries.map((entry) => {
                             const isTied =
                               entry.rank !== null &&
@@ -596,8 +592,8 @@ export function ParticipantLeaderboardView({
                                 key={entry.id}
                                 className={`transition-colors ${
                                   isMyContingent
-                                    ? "bg-[#FDF8EC] hover:bg-[#FAF1DA]"
-                                    : "hover:bg-[#FAF8F6]"
+                                    ? "bg-[#350A0A] hover:bg-[#401010]"
+                                    : "bg-[#2B0808] hover:bg-[#350A0A]"
                                 }`}
                               >
                                 <td className="px-6 py-4">
@@ -609,12 +605,12 @@ export function ParticipantLeaderboardView({
                                         #{entry.rank}
                                       </span>
                                     ) : (
-                                      <span className="inline-flex items-center justify-center rounded border border-[#E5E1DF] bg-[#FAF8F6] px-2.5 py-1 text-xs font-medium text-slate-600">
+                                      <span className="inline-flex items-center justify-center rounded border border-[#542525] bg-[#350A0A] px-2.5 py-1 text-xs font-medium text-[#B9AAA5]">
                                         Unranked
                                       </span>
                                     )}
                                     {isTied ? (
-                                      <span className="rounded border border-[#D9AD61]/50 bg-[#FDF6E7] px-1.5 py-0.5 text-[11px] font-semibold text-[#6E4D12]">
+                                      <span className="rounded border border-[#D9AD61]/45 bg-[#401010] px-1.5 py-0.5 text-[11px] font-semibold text-[#D9AD61]">
                                         Tied
                                       </span>
                                     ) : null}
@@ -623,34 +619,34 @@ export function ParticipantLeaderboardView({
                                 <td className="px-6 py-4">
                                   <div className="space-y-0.5">
                                     <div className="flex flex-wrap items-center gap-2">
-                                      <span className="font-mono text-xs font-semibold text-[#4B0507]">
+                                      <span className="font-mono text-xs font-semibold text-[#D9AD61]">
                                         {entry.contingentCode}
                                       </span>
-                                      <span className="font-display font-semibold text-slate-900">
+                                      <span className="font-display font-semibold text-[#F5F0EC]">
                                         {entry.contingentName}
                                       </span>
                                       {isMyContingent ? (
-                                        <span className="rounded bg-[#4B0507] px-2 py-0.5 text-[11px] font-semibold text-white">
+                                        <span className="rounded bg-[#D9AD61] px-2 py-0.5 text-[11px] font-semibold text-[#200000]">
                                           Your Team
                                         </span>
                                       ) : null}
                                     </div>
-                                    <p className="text-xs text-slate-500">
+                                    <p className="text-xs text-[#B9AAA5]">
                                       {entry.institutionName}
                                     </p>
                                   </div>
                                 </td>
-                                <td className="px-6 py-4 text-right font-medium text-slate-900">
+                                <td className="px-6 py-4 text-right font-medium text-[#F5F0EC]">
                                   {entry.score !== null ? (
-                                    <span className="inline-block rounded-md border border-[#E5E1DF] bg-[#FAF8F6] px-3 py-1 font-mono text-sm font-bold tabular-nums text-slate-900">
+                                    <span className="inline-block rounded-md border border-[#542525] bg-[#401010] px-3 py-1 font-mono text-sm font-bold tabular-nums text-[#F5F0EC]">
                                       {formatLeaderboardScore(entry.score)}
                                     </span>
                                   ) : entry.displayLabel ? (
-                                    <span className="inline-block rounded-md border border-[#E5E1DF] bg-[#FAF8F6] px-3 py-1 font-mono text-sm font-bold text-slate-900">
+                                    <span className="inline-block rounded-md border border-[#542525] bg-[#401010] px-3 py-1 font-mono text-sm font-bold text-[#F5F0EC]">
                                       {entry.displayLabel}
                                     </span>
                                   ) : (
-                                    <span className="inline-block rounded-md border border-[#E5E1DF] bg-[#FAF8F6] px-3 py-1 text-xs font-medium text-slate-500">
+                                    <span className="inline-block rounded-md border border-[#542525] bg-[#350A0A] px-3 py-1 text-xs font-medium text-[#B9AAA5]">
                                       No score
                                     </span>
                                   )}

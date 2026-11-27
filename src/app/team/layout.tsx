@@ -32,7 +32,7 @@ export default function TeamPortalLayout({
 
   return (
     <div
-      className={`${montserrat.variable} ${poppins.variable} min-h-screen bg-[#F8F7F6] text-slate-900 antialiased`}
+      className={`${montserrat.variable} ${poppins.variable} min-h-screen bg-[#200000] text-slate-900 antialiased`}
       style={fontScopeStyle}
     >
       {children}

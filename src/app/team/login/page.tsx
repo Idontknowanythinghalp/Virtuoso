@@ -70,21 +70,21 @@ export default async function TeamLoginPage({
       : null;
 
   return (
-    <div className="flex min-h-screen flex-col justify-between bg-[#F8F7F6]">
-      <header className="border-b border-[#D9AD61]/25 bg-[#200000] px-4 py-4 text-white sm:px-6">
+    <div className="flex min-h-screen flex-col justify-between bg-[#200000] text-[#F5F0EC]">
+      <header className="border-b border-[#542525] bg-[#200000] px-4 py-4 text-[#F5F0EC] sm:px-6">
         <div className="mx-auto flex max-w-md items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <BrandMark
               src="/brand/virtuoso-emblem.png"
               alt="Virtuoso Emblem"
-              className="h-10 w-10 shrink-0 rounded-md border border-[#D9AD61]/35 bg-[#2B0304] object-contain p-1"
+              className="h-10 w-10 shrink-0 rounded-md border border-[#542525] bg-[#2B0808] object-contain p-1"
               fallbackLabel="V"
             />
             <div className="min-w-0">
               <p className="truncate text-[11px] font-medium tracking-wide text-[#D9AD61]">
                 {siteConfig.institution}
               </p>
-              <h1 className="truncate font-display text-lg font-bold tracking-tight text-white">
+              <h1 className="truncate font-display text-lg font-bold tracking-tight text-[#F5F0EC]">
                 Virtuoso 2026 Team Portal
               </h1>
             </div>
@@ -95,28 +95,28 @@ export default async function TeamLoginPage({
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-8 sm:px-6">
         <section
           aria-labelledby="team-login-heading"
-          className="overflow-hidden rounded-lg border border-[#E5E1DF] bg-white"
+          className="overflow-hidden rounded-lg border border-[#542525] bg-[#2B0808]"
         >
-          <div className="border-b border-[#E5E1DF] bg-[#FAF8F6] px-6 py-5 sm:px-7">
-            <p className="text-xs font-semibold tracking-wide text-[#4B0507]">
+          <div className="border-b border-[#542525] bg-[#350A0A] px-6 py-5 sm:px-7">
+            <p className="text-xs font-semibold tracking-wide text-[#D9AD61]">
               Heirs of the Solstice
             </p>
             <h2
               id="team-login-heading"
-              className="mt-0.5 font-display text-xl font-bold text-slate-900"
+              className="mt-0.5 font-display text-xl font-bold text-[#F5F0EC]"
             >
               Contingent Sign In
             </h2>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="mt-1 text-sm text-[#B9AAA5]">
               Sign in with your assigned team code and password.
             </p>
           </div>
 
-          <div className="space-y-4 p-6 sm:p-7">
+          <div className="space-y-4 bg-[#2B0808] p-6 sm:p-7">
             {statusMessage ? (
               <div
                 role="status"
-                className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+                className="rounded-md border border-emerald-400/40 bg-emerald-950/60 px-4 py-3 text-sm text-emerald-200"
               >
                 {statusMessage}
               </div>
@@ -125,14 +125,14 @@ export default async function TeamLoginPage({
             {errorBanner ? (
               <div
                 role="alert"
-                className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+                className="rounded-md border border-amber-400/45 bg-[#350A0A] px-4 py-3 text-sm text-amber-200"
               >
                 {errorBanner}
               </div>
             ) : null}
 
             {isSignedInAsOrganiser ? (
-              <div className="space-y-4 rounded-md border border-[#E5E1DF] bg-[#FAF8F6] p-4 text-sm text-slate-700">
+              <div className="space-y-4 rounded-md border border-[#542525] bg-[#350A0A] p-4 text-sm text-[#B9AAA5]">
                 <p className="leading-relaxed">
                   Team sign-in is disabled in this browser window while your
                   organiser session is active so your CMS session is not
@@ -141,7 +141,7 @@ export default async function TeamLoginPage({
                 </p>
                 <Link
                   href="/"
-                  className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-[#4B0507] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#380305] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507] focus-visible:ring-offset-2"
+                  className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-[#D9AD61] px-4 py-2 text-sm font-semibold text-[#200000] transition-colors hover:bg-[#E4BC77] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D9AD61] focus-visible:ring-offset-2 focus-visible:ring-offset-[#350A0A]"
                 >
                   Return to Organiser CMS
                 </Link>
@@ -150,7 +150,7 @@ export default async function TeamLoginPage({
               <TeamLoginForm nextPath={nextPath} disabled={!serverConfigured} />
             )}
 
-            <p className="border-t border-[#E5E1DF] pt-4 text-xs leading-relaxed text-slate-500">
+            <p className="border-t border-[#542525] pt-4 text-xs leading-relaxed text-[#B9AAA5]">
               Team accounts are provisioned by Virtuoso organisers. Each team
               may maintain up to 4 concurrent active device sessions.
             </p>
@@ -158,8 +158,8 @@ export default async function TeamLoginPage({
         </section>
       </main>
 
-      <footer className="border-t border-[#D9AD61]/20 bg-[#200000] px-4 py-4 text-white sm:px-6">
-        <div className="mx-auto flex max-w-md flex-wrap items-center justify-between gap-2 text-xs text-white/75">
+      <footer className="border-t border-[#542525] bg-[#200000] px-4 py-4 text-[#F5F0EC] sm:px-6">
+        <div className="mx-auto flex max-w-md flex-wrap items-center justify-between gap-2 text-xs text-[#B9AAA5]">
           <span>{siteConfig.department}</span>
           <span className="font-medium text-[#D9AD61]">4–5 December 2026</span>
         </div>
