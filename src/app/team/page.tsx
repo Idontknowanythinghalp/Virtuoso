@@ -16,6 +16,10 @@ import {
   EVENT_STATUS_LABELS,
 } from "@/types/competition";
 import { BrandMark } from "@/components/cms/BrandMark";
+import {
+  TeamStandingsDashboardCard,
+  TeamStandingsNavLink,
+} from "@/components/team/TeamStandingsLink";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +77,7 @@ export default async function TeamPortalPage() {
             >
               Current Rounds
             </Link>
+            <TeamStandingsNavLink />
           </div>
         </nav>
       </header>
@@ -146,6 +151,8 @@ export default async function TeamPortalPage() {
             4-device limit.
           </p>
         </section>
+
+        <TeamStandingsDashboardCard />
 
         <section
           aria-labelledby="registered-events-heading"

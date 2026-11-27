@@ -9,6 +9,7 @@ import { loadParticipantDocumentsForVisibleRounds } from "@/lib/team-portal/docu
 import { BrandMark } from "@/components/cms/BrandMark";
 import { ParticipantRoundDocuments } from "@/components/team/ParticipantRoundDocuments";
 import { RefreshRoundsButton } from "@/components/team/RefreshRoundsButton";
+import { TeamStandingsNavLink } from "@/components/team/TeamStandingsLink";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,7 @@ export default async function TeamCurrentRoundsPage() {
             >
               Current Rounds
             </Link>
+            <TeamStandingsNavLink />
           </div>
         </nav>
       </header>
