@@ -12,7 +12,16 @@ import {
   sortPublishedLeaderboardRows,
   validateLeaderboardScore,
 } from "@/lib/leaderboard/validation";
-import { loadTeamLeaderboardsWithDeps } from "@/lib/team-portal/leaderboard";
+import {
+  LEADERBOARD_POLL_INTERVAL_MS,
+  computeParticipantLeaderboardVersionToken,
+  createParticipantLeaderboardSyncController,
+  normalizePublishedAtToken,
+} from "@/lib/leaderboard/participant-polling";
+import {
+  loadTeamLeaderboardVersionWithDeps,
+  loadTeamLeaderboardsWithDeps,
+} from "@/lib/team-portal/leaderboard";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -465,3 +474,363 @@ test("Stage 4.4E [Structural]: Organiser UI, Team Refresh Server Action, and Par
   assert.doesNotMatch(participantSrc, /router\.refresh/);
   assert.doesNotMatch(participantSrc, /leaderboard_entries/);
 });
+
+// ============================================================================
+// STAGE 4.4E AUTO-UPDATE POLLING TESTS
+// ============================================================================
+
+test("Stage 4.4E [Executed]: Version token detects publish, republish, and unpublish while ignoring draft-only edits and timestamp formatting differences", async () => {
+  const EVENT_2 = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+  // SSR snapshot timestamp vs PostgREST ISO timestamp normalization (+00:00 vs Z, trailing zeroes)
+  assert.equal(
+    normalizePublishedAtToken("2026-12-04T18:00:00.500000+00:00"),
+    normalizePublishedAtToken("2026-12-04T18:00:00.5Z"),
+  );
+
+  const unpublishedToken = computeParticipantLeaderboardVersionToken([
+    { eventId: EVENT_1, eventStatus: "active", isPublished: false, publishedAt: null },
+    { eventId: EVENT_2, eventStatus: "active", isPublished: false, publishedAt: null },
+  ]);
+
+  // Draft-only changes never touch leaderboard_publications, so version metadata stays identical
+  const afterDraftEditToken = computeParticipantLeaderboardVersionToken([
+    { eventId: EVENT_2, eventStatus: "active", isPublished: false, publishedAt: null },
+    { eventId: EVENT_1, eventStatus: "active", isPublished: false, publishedAt: null },
+  ]);
+  assert.equal(afterDraftEditToken, unpublishedToken);
+
+  // Initial publish changes token
+  const publishedToken = computeParticipantLeaderboardVersionToken([
+    {
+      eventId: EVENT_1,
+      eventStatus: "active",
+      isPublished: true,
+      publishedAt: "2026-12-04T18:00:00.120000+00:00",
+    },
+    { eventId: EVENT_2, eventStatus: "active", isPublished: false, publishedAt: null },
+  ]);
+  assert.notEqual(publishedToken, unpublishedToken);
+
+  // Exact same timestamp formatted via JSONB vs PostgREST produces identical token
+  const samePublishFormattedDifferently = computeParticipantLeaderboardVersionToken([
+    {
+      eventId: EVENT_1,
+      eventStatus: "active",
+      isPublished: true,
+      publishedAt: "2026-12-04T18:00:00.12Z",
+    },
+    { eventId: EVENT_2, eventStatus: "active", isPublished: false, publishedAt: null },
+  ]);
+  assert.equal(samePublishFormattedDifferently, publishedToken);
+
+  // Republish updates publishedAt -> changes token
+  const republishedToken = computeParticipantLeaderboardVersionToken([
+    {
+      eventId: EVENT_1,
+      eventStatus: "active",
+      isPublished: true,
+      publishedAt: "2026-12-04T18:15:00.000000+00:00",
+    },
+    { eventId: EVENT_2, eventStatus: "active", isPublished: false, publishedAt: null },
+  ]);
+  assert.notEqual(republishedToken, publishedToken);
+
+  // Unpublish sets isPublished=false (even if stale publishedAt remains) -> changes token back
+  const unpublishedAgainToken = computeParticipantLeaderboardVersionToken([
+    {
+      eventId: EVENT_1,
+      eventStatus: "active",
+      isPublished: false,
+      publishedAt: "2026-12-04T18:15:00.000000+00:00",
+    },
+    { eventId: EVENT_2, eventStatus: "active", isPublished: false, publishedAt: null },
+  ]);
+  assert.equal(unpublishedAgainToken, unpublishedToken);
+
+  // Server helper validates contingent UUID and propagates descriptor tokens
+  const versionRes = await loadTeamLeaderboardVersionWithDeps(CONTINGENT_A, {
+    fetchPublicationDescriptors: async () => ({
+      rows: [
+        {
+          eventId: EVENT_1,
+          eventStatus: "active",
+          isPublished: true,
+          publishedAt: "2026-12-04T18:15:00Z",
+        },
+        {
+          eventId: EVENT_2,
+          eventStatus: "active",
+          isPublished: false,
+          publishedAt: null,
+        },
+      ],
+      error: null,
+    }),
+  });
+  assert.equal(versionRes.ok, true);
+  if (versionRes.ok) {
+    assert.equal(versionRes.versionToken, republishedToken);
+  }
+});
+
+test("Stage 4.4E [Executed]: Sync controller auto-fetches on publish, republish, and unpublish, while skipping full fetch when unchanged (including draft edits)", async () => {
+  const initialState = [
+    { eventId: EVENT_1, eventStatus: "active", isPublished: false, publishedAt: null },
+  ];
+  const initialToken = computeParticipantLeaderboardVersionToken(initialState);
+
+  let serverDescriptors = initialState;
+  let fullSnapshotPayload = initialState;
+  let checkCalls = 0;
+  let fullFetchCalls = 0;
+  let autoUpdateStarts = 0;
+  let autoUpdateEnds = 0;
+  let latestDisplayed = initialState;
+
+  const controller = createParticipantLeaderboardSyncController({
+    initialVersionToken: initialToken,
+    checkVersion: async () => {
+      checkCalls += 1;
+      return {
+        ok: true,
+        versionToken: computeParticipantLeaderboardVersionToken(serverDescriptors),
+      };
+    },
+    fetchFullLeaderboards: async () => {
+      fullFetchCalls += 1;
+      return {
+        ok: true,
+        leaderboards: fullSnapshotPayload,
+        refreshedAt: "2026-12-04T18:00:00.000Z",
+        versionToken: computeParticipantLeaderboardVersionToken(fullSnapshotPayload),
+      };
+    },
+    onAutoUpdateStart: () => {
+      autoUpdateStarts += 1;
+    },
+    onAutoUpdateEnd: () => {
+      autoUpdateEnds += 1;
+    },
+    onLeaderboardsUpdated: ({ leaderboards }) => {
+      latestDisplayed = leaderboards;
+    },
+  });
+
+  // 1. No change / draft-only edit -> checks version once, skips full snapshot fetch
+  assert.equal(await controller.checkAndSync(), "unchanged");
+  assert.equal(checkCalls, 1);
+  assert.equal(fullFetchCalls, 0);
+  assert.equal(autoUpdateStarts, 0);
+
+  // 2. Organiser publishes leaderboard -> detects change and fetches published snapshot
+  const publishedState = [
+    {
+      eventId: EVENT_1,
+      eventStatus: "active",
+      isPublished: true,
+      publishedAt: "2026-12-04T18:05:00Z",
+    },
+  ];
+  serverDescriptors = publishedState;
+  fullSnapshotPayload = publishedState;
+  assert.equal(await controller.checkAndSync(), "updated");
+  assert.equal(fullFetchCalls, 1);
+  assert.equal(autoUpdateStarts, 1);
+  assert.equal(autoUpdateEnds, 1);
+  assert.equal(latestDisplayed[0].isPublished, true);
+
+  // 3. Subsequent poll with same published state -> no redundant full fetch
+  assert.equal(await controller.checkAndSync(), "unchanged");
+  assert.equal(fullFetchCalls, 1);
+
+  // 4. Organiser republishes revised leaderboard -> fetches revised snapshot
+  const republishedState = [
+    {
+      eventId: EVENT_1,
+      eventStatus: "active",
+      isPublished: true,
+      publishedAt: "2026-12-04T18:20:00Z",
+    },
+  ];
+  serverDescriptors = republishedState;
+  fullSnapshotPayload = republishedState;
+  assert.equal(await controller.checkAndSync(), "updated");
+  assert.equal(fullFetchCalls, 2);
+  assert.equal(latestDisplayed[0].publishedAt, "2026-12-04T18:20:00Z");
+
+  // 5. Organiser unpublishes leaderboard -> detects unpublish and clears published view
+  const unpublishedState = [
+    {
+      eventId: EVENT_1,
+      eventStatus: "active",
+      isPublished: false,
+      publishedAt: null,
+    },
+  ];
+  serverDescriptors = unpublishedState;
+  fullSnapshotPayload = unpublishedState;
+  assert.equal(await controller.checkAndSync(), "updated");
+  assert.equal(fullFetchCalls, 3);
+  assert.equal(latestDisplayed[0].isPublished, false);
+});
+
+test("Stage 4.4E [Executed]: Transient errors preserve standings and recover; terminal auth errors stop polling; manual refresh works", async () => {
+  const publishedState = [
+    {
+      eventId: EVENT_1,
+      eventStatus: "active",
+      isPublished: true,
+      publishedAt: "2026-12-04T18:00:00Z",
+    },
+  ];
+
+  let latestDisplayed = publishedState;
+  const errors = [];
+  let recoveredCount = 0;
+  let versionResponse = { ok: false, reason: "error", message: "Network timeout" };
+  let manualFetchCalls = 0;
+
+  const controller = createParticipantLeaderboardSyncController({
+    initialVersionToken: computeParticipantLeaderboardVersionToken(publishedState),
+    checkVersion: async () => versionResponse,
+    fetchFullLeaderboards: async () => {
+      manualFetchCalls += 1;
+      return {
+        ok: true,
+        leaderboards: publishedState,
+        refreshedAt: "2026-12-04T18:10:00.000Z",
+        versionToken: computeParticipantLeaderboardVersionToken(publishedState),
+      };
+    },
+    onAutoCheckSuccess: () => {
+      recoveredCount += 1;
+    },
+    onLeaderboardsUpdated: ({ leaderboards }) => {
+      latestDisplayed = leaderboards;
+    },
+    onError: (err) => {
+      errors.push(err);
+    },
+  });
+
+  // Transient network failure -> reports error, keeps existing standings, does NOT halt polling
+  assert.equal(await controller.checkAndSync(), "error");
+  assert.equal(latestDisplayed.length, 1);
+  assert.equal(controller.isAuthStopped(), false);
+  assert.equal(errors[0].isTerminalAuth, false);
+
+  // Subsequent poll recovers cleanly
+  versionResponse = {
+    ok: true,
+    versionToken: computeParticipantLeaderboardVersionToken(publishedState),
+  };
+  assert.equal(await controller.checkAndSync(), "unchanged");
+  assert.equal(recoveredCount, 1);
+
+  // Manual refresh works as fallback regardless of whether token changed
+  assert.equal(await controller.manualRefresh(), "updated");
+  assert.equal(manualFetchCalls, 1);
+
+  // Terminal auth error -> stops background polling
+  versionResponse = {
+    ok: false,
+    reason: "invalid_team_session",
+    message: "Session expired",
+  };
+  assert.equal(await controller.checkAndSync(), "error");
+  assert.equal(controller.isAuthStopped(), true);
+  assert.equal(await controller.checkAndSync(), "skipped");
+});
+
+test("Stage 4.4E [Executed]: Sync controller prevents overlapping concurrent requests and ignores late resolutions after stop()", async () => {
+  const initialState = [
+    { eventId: EVENT_1, eventStatus: "active", isPublished: false, publishedAt: null },
+  ];
+  const updatedState = [
+    {
+      eventId: EVENT_1,
+      eventStatus: "active",
+      isPublished: true,
+      publishedAt: "2026-12-04T19:00:00Z",
+    },
+  ];
+
+  let resolveFirstCheck;
+  let checkCalls = 0;
+  let updatesAfterStop = 0;
+
+  const controller = createParticipantLeaderboardSyncController({
+    initialVersionToken: computeParticipantLeaderboardVersionToken(initialState),
+    checkVersion: () => {
+      checkCalls += 1;
+      return new Promise((resolve) => {
+        resolveFirstCheck = resolve;
+      });
+    },
+    fetchFullLeaderboards: async () => ({
+      ok: true,
+      leaderboards: updatedState,
+      refreshedAt: "2026-12-04T19:00:00.000Z",
+      versionToken: computeParticipantLeaderboardVersionToken(updatedState),
+    }),
+    onLeaderboardsUpdated: () => {
+      updatesAfterStop += 1;
+    },
+  });
+
+  // Start first poll and immediately attempt overlapping poll & overlapping manual refresh
+  const firstPollPromise = controller.checkAndSync();
+  assert.equal(controller.isInFlight(), true);
+  assert.equal(await controller.checkAndSync(), "skipped");
+  assert.equal(await controller.manualRefresh(), "skipped");
+  assert.equal(checkCalls, 1);
+
+  // Simulate component unmount before first poll finishes
+  controller.stop();
+  resolveFirstCheck({
+    ok: true,
+    versionToken: computeParticipantLeaderboardVersionToken(updatedState),
+  });
+
+  assert.equal(await firstPollPromise, "stopped");
+  assert.equal(updatesAfterStop, 0);
+  assert.equal(await controller.checkAndSync(), "skipped");
+});
+
+test("Stage 4.4E [Structural]: Auto-update polling preserves server-only boundaries, session scoping, visibility pause, and cleanup", () => {
+  const versionReadSrc = fs.readFileSync(
+    path.join(ROOT_DIR, "src/lib/team-portal/leaderboard-version.ts"),
+    "utf8",
+  );
+  assert.match(versionReadSrc, /import "server-only";/);
+  assert.match(versionReadSrc, /\.from\("event_entries"\)/);
+  assert.match(versionReadSrc, /\.from\("leaderboard_publications"\)/);
+  assert.equal(versionReadSrc.includes("leaderboard_entries"), false);
+  assert.equal(versionReadSrc.includes("leaderboard_published_entries"), false);
+
+  const teamActionSrc = fs.readFileSync(
+    path.join(ROOT_DIR, "src/app/actions/team-leaderboard.ts"),
+    "utf8",
+  );
+  assert.match(teamActionSrc, /checkParticipantLeaderboardVersionAction/);
+  assert.match(teamActionSrc, /loadParticipantLeaderboardVersionForTeam\(team\)/);
+  assert.equal(
+    (teamActionSrc.match(/requireActiveTeamForAction\(\)/g) ?? []).length >= 2,
+    true,
+  );
+
+  const participantSrc = fs.readFileSync(
+    path.join(ROOT_DIR, "src/components/team/ParticipantLeaderboard.tsx"),
+    "utf8",
+  );
+  assert.equal(LEADERBOARD_POLL_INTERVAL_MS >= 10_000 && LEADERBOARD_POLL_INTERVAL_MS <= 15_000, true);
+  assert.match(participantSrc, /LEADERBOARD_POLL_INTERVAL_MS/);
+  assert.match(participantSrc, /visibilitychange/);
+  assert.match(participantSrc, /clearInterval/);
+  assert.match(participantSrc, /controller\.stop\(\)/);
+  assert.match(participantSrc, /isAutoUpdating/);
+  assert.match(participantSrc, /checkParticipantLeaderboardVersionAction/);
+  assert.equal(participantSrc.includes("team-portal"), false);
+});
+

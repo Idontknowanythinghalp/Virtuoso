@@ -5,6 +5,11 @@ import {
   normalizeNumericScore,
   sortPublishedLeaderboardRows,
 } from "@/lib/leaderboard/validation";
+import {
+  computeParticipantLeaderboardVersionToken,
+  normalizePublishedAtToken,
+  type ParticipantLeaderboardPublicationDescriptor,
+} from "@/lib/leaderboard/participant-polling";
 import type { ReadOnlyLeaderboardRow } from "@/types/competition";
 
 export interface ParticipantLeaderboardRpcEntryRow {
@@ -260,6 +265,85 @@ export async function loadTeamLeaderboardsWithDeps(
   );
 
   return { ok: true, leaderboards };
+}
+
+export type { ParticipantLeaderboardPublicationDescriptor };
+export { computeParticipantLeaderboardVersionToken, normalizePublishedAtToken };
+
+export type ParticipantLeaderboardVersionResult =
+  | {
+      ok: true;
+      versionToken: string;
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
+export interface LoadTeamLeaderboardVersionDeps {
+  fetchPublicationDescriptors: (contingentId: string) => Promise<{
+    rows: ParticipantLeaderboardPublicationDescriptor[];
+    error: { code?: string | null; message?: string | null } | null;
+  }>;
+  onError?: (context: string, detail?: string) => void;
+}
+
+export async function loadTeamLeaderboardVersionWithDeps(
+  contingentId: string,
+  deps: LoadTeamLeaderboardVersionDeps,
+): Promise<ParticipantLeaderboardVersionResult> {
+  const contingentCheck = validateUuid(contingentId, "Contingent");
+  if (!contingentCheck.ok) {
+    try {
+      deps.onError?.("invalid_contingent_uuid", contingentCheck.error);
+    } catch {
+      // ignore logger error
+    }
+    return {
+      ok: false,
+      error: "Unable to verify your team session. Please sign in again.",
+    };
+  }
+
+  const normalizedContingentId = contingentCheck.value.toLowerCase();
+
+  let res: {
+    rows: ParticipantLeaderboardPublicationDescriptor[];
+    error: { code?: string | null; message?: string | null } | null;
+  };
+  try {
+    res = await deps.fetchPublicationDescriptors(normalizedContingentId);
+  } catch (err) {
+    try {
+      deps.onError?.(
+        "fetch_version_throw",
+        err instanceof Error ? err.message : "Unknown error",
+      );
+    } catch {
+      // ignore logger error
+    }
+    return { ok: false, error: LEADERBOARD_LOAD_ERROR_MESSAGE };
+  }
+
+  const errorKind = classifyLeaderboardLoadError(res.error);
+  if (errorKind !== "none") {
+    try {
+      deps.onError?.(
+        errorKind === "migration_missing"
+          ? "migration_missing"
+          : "fetch_version_error",
+        res.error?.message ?? "Unknown leaderboard version error",
+      );
+    } catch {
+      // ignore logger error
+    }
+    return { ok: false, error: LEADERBOARD_LOAD_ERROR_MESSAGE };
+  }
+
+  return {
+    ok: true,
+    versionToken: computeParticipantLeaderboardVersionToken(res.rows),
+  };
 }
 
 export { countRankOccurrences, sortPublishedLeaderboardRows };

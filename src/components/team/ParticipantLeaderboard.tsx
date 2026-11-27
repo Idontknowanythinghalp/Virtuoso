@@ -1,13 +1,22 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ClipboardList,
   RefreshCw,
   Trophy,
 } from "lucide-react";
-import { refreshParticipantLeaderboardsAction } from "@/app/actions/team-leaderboard";
+import {
+  checkParticipantLeaderboardVersionAction,
+  refreshParticipantLeaderboardsAction,
+} from "@/app/actions/team-leaderboard";
+import {
+  LEADERBOARD_POLL_INTERVAL_MS,
+  computeParticipantLeaderboardVersionToken,
+  createParticipantLeaderboardSyncController,
+  type ParticipantLeaderboardSyncController,
+} from "@/lib/leaderboard/participant-polling";
 import {
   countRankOccurrences,
   formatLeaderboardScore,
@@ -59,9 +68,18 @@ export function ParticipantLeaderboardView({
   const [leaderboards, setLeaderboards] =
     useState<ParticipantEventLeaderboardItem[]>(initialLeaderboards);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isAutoUpdating, setIsAutoUpdating] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   const refreshLockRef = useRef(false);
+  const syncControllerRef = useRef<ParticipantLeaderboardSyncController | null>(
+    null,
+  );
+
+  const initialVersionToken = useMemo(
+    () => computeParticipantLeaderboardVersionToken(initialLeaderboards),
+    [initialLeaderboards],
+  );
 
   const defaultEventId = useMemo(() => {
     if (initialSelectedEventId) {
@@ -91,8 +109,126 @@ export function ParticipantLeaderboardView({
     return countRankOccurrences(activeLeaderboard.entries);
   }, [activeLeaderboard]);
 
+  useEffect(() => {
+    const controller =
+      createParticipantLeaderboardSyncController<ParticipantEventLeaderboardItem>(
+        {
+          initialVersionToken,
+          checkVersion: () => checkParticipantLeaderboardVersionAction(),
+          fetchFullLeaderboards: () => refreshParticipantLeaderboardsAction(),
+          onAutoUpdateStart: () => {
+            refreshLockRef.current = true;
+            setIsAutoUpdating(true);
+          },
+          onAutoUpdateEnd: () => {
+            refreshLockRef.current = false;
+            setIsAutoUpdating(false);
+          },
+          onAutoCheckSuccess: () => {
+            setRefreshError(null);
+          },
+          onManualRefreshStart: () => {
+            refreshLockRef.current = true;
+            setIsRefreshing(true);
+            setRefreshError(null);
+          },
+          onManualRefreshEnd: () => {
+            refreshLockRef.current = false;
+            setIsRefreshing(false);
+          },
+          onLeaderboardsUpdated: ({ leaderboards: updated, refreshedAt }) => {
+            setLeaderboards(updated);
+            setLastRefreshedAt(refreshedAt);
+            setRefreshError(null);
+
+            if (updated.length > 0) {
+              setSelectedEventId((prev) => {
+                const stillExists = updated.some((item) => item.eventId === prev);
+                if (stillExists) return prev;
+                return (
+                  updated.find((item) => item.isPublished)?.eventId ??
+                  updated[0].eventId
+                );
+              });
+            }
+          },
+          onError: ({ message, isTerminalAuth }) => {
+            setRefreshError(message);
+            if (isTerminalAuth) {
+              stopPollingInterval();
+            }
+          },
+        },
+      );
+
+    syncControllerRef.current = controller;
+
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    function stopPollingInterval() {
+      if (intervalId !== null) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    }
+
+    function startPollingInterval() {
+      if (intervalId !== null || controller.isAuthStopped()) {
+        return;
+      }
+      intervalId = setInterval(() => {
+        if (
+          typeof document !== "undefined" &&
+          document.visibilityState !== "visible"
+        ) {
+          return;
+        }
+        void controller.checkAndSync();
+      }, LEADERBOARD_POLL_INTERVAL_MS);
+    }
+
+    function handleVisibilityChange() {
+      if (typeof document === "undefined") return;
+      if (document.visibilityState === "visible") {
+        startPollingInterval();
+        void controller.checkAndSync();
+      } else {
+        stopPollingInterval();
+      }
+    }
+
+    if (
+      typeof document === "undefined" ||
+      document.visibilityState === "visible"
+    ) {
+      startPollingInterval();
+    }
+
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    }
+
+    return () => {
+      stopPollingInterval();
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
+      controller.stop();
+      if (syncControllerRef.current === controller) {
+        syncControllerRef.current = null;
+      }
+      refreshLockRef.current = false;
+    };
+  }, [initialVersionToken]);
+
   async function handleRefreshLeaderboard() {
     if (refreshLockRef.current || isRefreshing) {
+      return;
+    }
+
+    const controller = syncControllerRef.current;
+    if (controller) {
+      await controller.manualRefresh();
       return;
     }
 
@@ -111,15 +247,16 @@ export function ParticipantLeaderboardView({
       setLastRefreshedAt(result.refreshedAt);
 
       if (result.leaderboards.length > 0) {
-        const stillExists = result.leaderboards.some(
-          (item) => item.eventId === selectedEventId,
-        );
-        if (!stillExists) {
-          const nextDefault =
+        setSelectedEventId((prev) => {
+          const stillExists = result.leaderboards.some(
+            (item) => item.eventId === prev,
+          );
+          if (stillExists) return prev;
+          return (
             result.leaderboards.find((item) => item.isPublished)?.eventId ??
-            result.leaderboards[0].eventId;
-          setSelectedEventId(nextDefault);
-        }
+            result.leaderboards[0].eventId
+          );
+        });
       }
     } catch {
       setRefreshError(
@@ -134,8 +271,20 @@ export function ParticipantLeaderboardView({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
-        <div className="text-xs text-slate-600">
-          {lastRefreshedAt ? (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+          {isAutoUpdating ? (
+            <span
+              role="status"
+              aria-live="polite"
+              className="inline-flex items-center gap-1.5 font-medium text-[#4B0507]"
+            >
+              <RefreshCw
+                className="h-3.5 w-3.5 shrink-0 animate-spin"
+                aria-hidden="true"
+              />
+              <span>Updating standings...</span>
+            </span>
+          ) : lastRefreshedAt ? (
             <span>
               Last refreshed: {formatUtcTimestamp(lastRefreshedAt)}
             </span>
@@ -147,15 +296,21 @@ export function ParticipantLeaderboardView({
         <button
           type="button"
           onClick={handleRefreshLeaderboard}
-          disabled={isRefreshing}
-          aria-busy={isRefreshing}
+          disabled={isRefreshing || isAutoUpdating}
+          aria-busy={isRefreshing || isAutoUpdating}
           className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-800 transition-colors hover:border-[#4B0507] hover:text-[#4B0507] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507] disabled:cursor-not-allowed disabled:opacity-60"
         >
           <RefreshCw
-            className={`h-3.5 w-3.5 shrink-0 ${isRefreshing ? "animate-spin" : ""}`}
+            className={`h-3.5 w-3.5 shrink-0 ${isRefreshing || isAutoUpdating ? "animate-spin" : ""}`}
             aria-hidden="true"
           />
-          <span>{isRefreshing ? "Refreshing..." : "Refresh Leaderboard"}</span>
+          <span>
+            {isRefreshing
+              ? "Refreshing..."
+              : isAutoUpdating
+                ? "Updating..."
+                : "Refresh Leaderboard"}
+          </span>
         </button>
       </div>
 
