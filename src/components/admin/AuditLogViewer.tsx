@@ -45,6 +45,38 @@ const ACTION_OPTIONS = [
   { value: "auth.login_blocked_inactive", label: "Blocked Inactive Login" },
   { value: "auth.logout", label: "Logout" },
   {
+    value: "team_session.registered",
+    label: "Team Session Registered",
+  },
+  {
+    value: "team_session.revoked",
+    label: "Team Session Signed Out",
+  },
+  {
+    value: "team_session.stale_pruned",
+    label: "Team Stale Sessions Pruned",
+  },
+  {
+    value: "team_session.revoked_by_admin",
+    label: "Team Session Revoked (Admin)",
+  },
+  {
+    value: "team_session.all_revoked_by_admin",
+    label: "Team All Devices Logged Out",
+  },
+  {
+    value: "team_session.global_revoked_by_admin",
+    label: "Global All-Teams Logout",
+  },
+  {
+    value: "team_session.account_deactivated",
+    label: "Team Account Deactivated",
+  },
+  {
+    value: "team_session.contingent_deactivated",
+    label: "Team Contingent Deactivated",
+  },
+  {
     value: "security.unauthorized_page_access",
     label: "Unauthorized Route Attempt",
   },
@@ -63,6 +95,8 @@ const ENTITY_TYPE_OPTIONS = [
   { value: "participant", label: "Participant" },
   { value: "event_entry", label: "Event Entry" },
   { value: "profile", label: "Profile" },
+  { value: "team_account", label: "Team Account" },
+  { value: "team_session", label: "Team Session" },
   { value: "session", label: "Session" },
   { value: "route", label: "Route" },
   { value: "action", label: "Action" },

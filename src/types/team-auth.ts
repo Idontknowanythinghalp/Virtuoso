@@ -56,3 +56,61 @@ export interface TeamLoginActionState {
   error: string | null;
 }
 
+export type TeamSessionStatus = "active" | "expired" | "revoked";
+
+export interface TeamSessionOverviewItem {
+  contingentId: string;
+  contingentCode: string;
+  contingentName: string;
+  institutionName: string;
+  contingentIsActive: boolean;
+  hasTeamAccount: boolean;
+  teamAccountIsActive: boolean;
+  activeSessionCount: number;
+  maxSessions: number;
+  isLoggedIn: boolean;
+  expiredUnprunedCount: number;
+  totalSessionCount: number;
+  mostRecentActiveAt: string | null;
+  mostRecentActivityAt: string | null;
+}
+
+export interface TeamSessionOverviewPayload {
+  generatedAt: string;
+  maxSessions: number;
+  teams: TeamSessionOverviewItem[];
+}
+
+export interface TeamSessionDetailItem {
+  sessionId: string;
+  deviceInfoStatus: string;
+  createdAt: string;
+  lastSeenAt: string;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  revokedReason: TeamSessionRevocationReason | null;
+  isActive: boolean;
+  status: TeamSessionStatus;
+}
+
+export interface TeamSessionDetailsPayload {
+  contingentId: string;
+  contingentCode: string;
+  contingentName: string;
+  institutionName: string;
+  contingentIsActive: boolean;
+  teamAccountIsActive: boolean;
+  activeSessionCount: number;
+  maxSessions: number;
+  sessions: TeamSessionDetailItem[];
+}
+
+export interface GlobalTeamSessionRevokeResult {
+  operation: "revoked_all_teams" | "none_active";
+  revokedCount: number;
+  expiredPrunedCount: number;
+  affectedTeamCount: number;
+  affectedContingentCodes: string[];
+  revokedAt: string;
+}
+

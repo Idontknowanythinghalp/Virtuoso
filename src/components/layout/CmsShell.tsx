@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  MonitorSmartphone,
   UserCheck,
   UserCog,
   X,
@@ -182,6 +183,23 @@ export function CmsShell({ breadcrumbs, user, children }: CmsShellProps) {
                   >
                     <UserCog className="h-4 w-4 shrink-0" aria-hidden="true" />
                     <span className="truncate">Organiser Accounts</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/admin/team-sessions"
+                    className={`flex min-h-10 items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507] ${
+                      pathname === "/admin/team-sessions" ||
+                      pathname.startsWith("/admin/team-sessions/")
+                        ? "bg-[#4B0507] text-white"
+                        : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                    }`}
+                  >
+                    <MonitorSmartphone
+                      className="h-4 w-4 shrink-0"
+                      aria-hidden="true"
+                    />
+                    <span className="truncate">Team Sessions</span>
                   </Link>
                 </li>
                 <li>
