@@ -4,6 +4,8 @@ Competition Management System (CMS) for **Virtuoso 2026** (*Heirs of the Solstic
 
 This application provides an authenticated **Organiser CMS** for managing competition operations and an authenticated **Team / Participant Portal** for viewing live round briefs and published standings.
 
+I also have below the file structure + the supabase details for better understanding in the future.
+
 ---
 
 ## 1. System A vs. System B Distinction
