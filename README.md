@@ -4,7 +4,7 @@ Competition Management System (CMS) for **Virtuoso 2026** (*Heirs of the Solstic
 
 This application provides an authenticated **Organiser CMS** for managing competition operations and an authenticated **Team / Participant Portal** for viewing live round briefs and published standings.
 
-<<<<<<< HEAD
+ HEAD
 ---
 
 ## 1. System A vs. System B Distinction
@@ -16,7 +16,7 @@ I also have below the file structure + the supabase details for better understan
 
 ## 1. System A vs. System B Distinction
 
->>>>>>> 1c3955cff922142dd1df114418d9009d2b5c1d9d
+>> 1c3955cff922142dd1df114418d9009d2b5c1d9d
 Virtuoso 2026 intentionally separates public registration/payments from internal competition operations:
 
 - **System A (External, SJCC-Owned):** The separate registration and payment portal used by colleges to register and pay fees. System A is **not** part of this repository, and this CMS does **not** replace, modify, host, or sync directly with System A over a live API.
