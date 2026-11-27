@@ -3,12 +3,14 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
+import { AuthSessionMissingError } from "@supabase/supabase-js";
 import {
   GENERIC_TEAM_LOGIN_ERROR,
   ORGANISER_TEAM_LOGIN_COLLISION_ERROR,
   TEAM_UNAVAILABLE_ERROR,
   authenticateTeamWithDeps,
   buildTeamLoginRedirectPath,
+  isMissingAuthSessionError,
   normalizeTeamCodeInput,
   sanitizeTeamRedirectPath,
   validateTeamLoginInputs,
@@ -162,6 +164,148 @@ test("Stage 4.4C (1b) [Regression Test]: Supabase auth.getUser() error in organi
   );
 });
 
+test("Stage 4.4C (1c) [Regression Test]: Missing auth session error in hasCurrentOrganiserSession does NOT block normal team login", async () => {
+  // Simulate the exact behaviour of hasCurrentOrganiserSession in team-guards.ts
+  async function simulateHasCurrentOrganiserSession(mockGetUser) {
+    const { data, error: userError } = await mockGetUser();
+    if (userError) {
+      if (isMissingAuthSessionError(userError)) {
+        return { isOrganiser: false, error: null };
+      }
+      return { isOrganiser: false, error: userError.message };
+    }
+    if (!data?.user) {
+      return { isOrganiser: false, error: null };
+    }
+    return { isOrganiser: false, error: null };
+  }
+
+  // 1. AuthSessionMissingError instance from @supabase/supabase-js
+  const sessionCheckA = await simulateHasCurrentOrganiserSession(async () => ({
+    data: { user: null },
+    error: new AuthSessionMissingError(),
+  }));
+  assert.deepEqual(
+    sessionCheckA,
+    { isOrganiser: false, error: null },
+    "AuthSessionMissingError must resolve to { isOrganiser: false, error: null }",
+  );
+
+  const { deps: depsA, calls: callsA } = createTeamLoginDeps({
+    async hasCurrentOrganiserSession() {
+      return sessionCheckA;
+    },
+  });
+  const outcomeA = await authenticateTeamWithDeps({
+    rawTeamCode: "SJCC-01",
+    rawPassword: "ValidTeamPassword!2026",
+    rawNextPath: "/team/rounds",
+    deps: depsA,
+  });
+  assert.deepEqual(outcomeA, { ok: true, redirectTo: "/team/rounds" });
+  assert.equal(callsA.contingentLookup, 1, "contingent lookup must proceed");
+  assert.equal(callsA.signInWithPassword, 1, "signInWithPassword must proceed");
+  assert.equal(callsA.registerTeamSession, 1, "registerTeamSession must proceed");
+  assert.equal(callsA.signOutLocal, 0, "signOutLocal must not be called on success");
+
+  // 2. Exact message: "Auth session missing!"
+  const sessionCheckB = await simulateHasCurrentOrganiserSession(async () => ({
+    data: { user: null },
+    error: { name: "AuthSessionMissingError", message: "Auth session missing!", status: 400 },
+  }));
+  assert.deepEqual(sessionCheckB, { isOrganiser: false, error: null });
+
+  // 3. Genuine network error does NOT get treated as missing session
+  const networkCheck = await simulateHasCurrentOrganiserSession(async () => ({
+    data: { user: null },
+    error: new Error("ETIMEDOUT: Failed to reach Supabase Auth"),
+  }));
+  assert.equal(networkCheck.isOrganiser, false);
+  assert.equal(networkCheck.error, "ETIMEDOUT: Failed to reach Supabase Auth");
+});
+
+test("Stage 4.4C (1d) [Unit Test]: isMissingAuthSessionError accurately distinguishes missing session from actual errors", () => {
+  // Missing session variants
+  assert.equal(isMissingAuthSessionError(new AuthSessionMissingError()), true);
+  assert.equal(
+    isMissingAuthSessionError({
+      name: "AuthSessionMissingError",
+      message: "Auth session missing!",
+      status: 400,
+    }),
+    true,
+  );
+  assert.equal(
+    isMissingAuthSessionError({
+      code: "session_not_found",
+      message: "User session was terminated",
+    }),
+    true,
+  );
+  assert.equal(
+    isMissingAuthSessionError({
+      code: "auth_session_missing",
+      message: "No active session",
+    }),
+    true,
+  );
+  assert.equal(
+    isMissingAuthSessionError({
+      code: "session_missing",
+      message: "Session missing",
+    }),
+    true,
+  );
+  assert.equal(
+    isMissingAuthSessionError({ message: "Auth session missing!" }),
+    true,
+  );
+  assert.equal(
+    isMissingAuthSessionError({ message: "  auth session missing  " }),
+    true,
+  );
+
+  // Actual auth/network/server errors must NOT be classified as missing session
+  assert.equal(isMissingAuthSessionError(new Error("fetch failed")), false);
+  assert.equal(
+    isMissingAuthSessionError({
+      name: "AuthApiError",
+      message: "Database connection failed",
+      status: 500,
+      code: "unexpected_failure",
+    }),
+    false,
+  );
+  assert.equal(
+    isMissingAuthSessionError({
+      name: "AuthRetryableFetchError",
+      message: "Connection timeout",
+      status: 504,
+    }),
+    false,
+  );
+  assert.equal(
+    isMissingAuthSessionError({
+      name: "AuthApiError",
+      message: "JWT expired",
+      code: "bad_jwt",
+      status: 401,
+    }),
+    false,
+  );
+  assert.equal(
+    isMissingAuthSessionError({
+      code: "PGRST001",
+      message: "Postgres schema error",
+    }),
+    false,
+  );
+  assert.equal(isMissingAuthSessionError(null), false);
+  assert.equal(isMissingAuthSessionError(undefined), false);
+  assert.equal(isMissingAuthSessionError("Auth session missing!"), false);
+  assert.equal(isMissingAuthSessionError(400), false);
+});
+
 test("Stage 4.4C (2) [Mocked Unit Test]: Team login continues working normally when no organiser session exists and restores safe destination", async () => {
   const { deps, calls } = createTeamLoginDeps();
 
@@ -289,9 +433,14 @@ test("Stage 4.4C (5) [Static Structural Check]: Proxy, team login page/form, and
   assert.match(teamLoginPageSource, /isSignedInAsOrganiser/);
   assert.match(teamLoginPageSource, /Return to Organiser CMS/);
   assert.match(teamGuardsSource, /hasCurrentOrganiserSession/);
+  assert.match(teamGuardsSource, /isMissingAuthSessionError\(userError\)/);
   assert.match(
     teamGuardsSource,
-    /if\s*\(\s*userError\s*\)\s*\{[\s\S]*?return\s*\{\s*isOrganiser:\s*false,\s*error:\s*userError\.message\s*\};/,
+    /if\s*\(\s*isMissingAuthSessionError\(userError\)\s*\)\s*\{\s*return\s*\{\s*isOrganiser:\s*false,\s*error:\s*null\s*\};/,
+  );
+  assert.match(
+    teamGuardsSource,
+    /return\s*\{\s*isOrganiser:\s*false,\s*error:\s*userError\.message\s*\};/,
   );
   assert.match(
     teamGuardsSource,

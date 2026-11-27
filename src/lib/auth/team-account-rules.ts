@@ -1,3 +1,4 @@
+import { isAuthSessionMissingError } from "@supabase/supabase-js";
 import {
   MAX_TEAM_CONCURRENT_SESSIONS,
   type TeamAccountRecord,
@@ -14,6 +15,48 @@ export function isValidUuid(value: string | null | undefined): boolean {
     return false;
   }
   return UUID_REGEX.test(value.trim());
+}
+
+/**
+ * Distinguishes a normal missing-session condition from genuine Supabase Auth,
+ * network, or server failures during organiser session checks.
+ */
+export function isMissingAuthSessionError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  if (isAuthSessionMissingError(error)) {
+    return true;
+  }
+
+  const err = error as {
+    name?: unknown;
+    message?: unknown;
+    code?: unknown;
+    status?: unknown;
+  };
+
+  if (err.name === "AuthSessionMissingError") {
+    return true;
+  }
+
+  if (
+    err.code === "session_not_found" ||
+    err.code === "auth_session_missing" ||
+    err.code === "session_missing"
+  ) {
+    return true;
+  }
+
+  if (
+    typeof err.message === "string" &&
+    err.message.trim().toLowerCase().replace(/!+$/, "") === "auth session missing"
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 /**

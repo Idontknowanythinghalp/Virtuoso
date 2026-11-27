@@ -9,6 +9,7 @@ import {
   authenticateTeamWithDeps,
   buildTeamLoginRedirectPath,
   escapePostgresLikePattern,
+  isMissingAuthSessionError,
   logoutTeamWithDeps,
   resolveActiveTeamSessionWithDeps,
   sanitizeTeamRedirectPath,
@@ -74,6 +75,9 @@ export async function signInTeamWithPassword(
           error: userError,
         } = await supabase.auth.getUser();
         if (userError) {
+          if (isMissingAuthSessionError(userError)) {
+            return { isOrganiser: false, error: null };
+          }
           console.error(
             "[team-auth] current session user check failed:",
             userError.message,
