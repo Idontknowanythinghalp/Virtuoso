@@ -1,8 +1,11 @@
 import React from "react";
+import Link from "next/link";
 import {
   AlertTriangle,
+  ArrowRight,
   CalendarCheck2,
   ClipboardList,
+  Layers,
   ShieldCheck,
 } from "lucide-react";
 import { logoutTeamAction } from "@/app/actions/team-auth";
@@ -37,7 +40,7 @@ export default async function TeamPortalPage() {
         <BrandMark
           src="/brand/virtuoso-emblem.png"
           alt="Virtuoso Emblem"
-          className="h-9 w-9 shrink-0 rounded-md border border-slate-200 bg-[#200000] object-contain p-1"
+          className="h-10 w-10 shrink-0 rounded-md border border-[#D9AD61]/35 bg-[#2B0304] object-contain p-1"
           fallbackLabel="V"
         />
       }
@@ -45,85 +48,126 @@ export default async function TeamPortalPage() {
       standingsNavLink={<TeamStandingsNavLink />}
       showSessionStrip={false}
     >
-        <section
-          aria-labelledby="team-session-heading"
-          className="rounded-lg border border-slate-200 bg-white p-6"
-        >
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700">
-                <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+      <section
+        aria-labelledby="team-session-heading"
+        className="overflow-hidden rounded-lg border border-[#D9AD61]/30 bg-[#200000] text-white"
+      >
+        <div className="p-6 sm:p-7">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0 space-y-2">
+              <div className="flex flex-wrap items-center gap-2 text-xs font-medium tracking-wide text-[#D9AD61]">
+                <span>Virtuoso 2026</span>
+                <span aria-hidden="true">·</span>
+                <span>Heirs of the Solstice</span>
               </div>
-              <div className="space-y-1">
-                <h1
-                  id="team-session-heading"
-                  className="font-display text-xl font-bold text-slate-900"
-                >
-                  Contingent Dashboard
-                </h1>
-                <p className="text-sm text-slate-600">
-                  Signed in on this device for your registered Virtuoso
-                  contingent.
-                </p>
-              </div>
+              <h1
+                id="team-session-heading"
+                className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl"
+              >
+                {team.contingentName}
+              </h1>
+              <p className="text-sm leading-relaxed text-white/80">
+                {team.institutionName}
+              </p>
             </div>
 
-            {dashboard.ok ? (
-              <div className="inline-flex shrink-0 items-center gap-2 self-start rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700">
-                <CalendarCheck2
-                  className="h-3.5 w-3.5 text-[#4B0507]"
-                  aria-hidden="true"
-                />
-                <span>
-                  {dashboard.events.length}{" "}
-                  {dashboard.events.length === 1
-                    ? "Registered Event"
-                    : "Registered Events"}
-                </span>
-              </div>
-            ) : null}
+            <div className="flex shrink-0 flex-wrap items-center gap-3">
+              <Link
+                href="/team/rounds"
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-[#D9AD61] px-4 py-2 text-sm font-semibold whitespace-nowrap text-[#200000] transition-colors hover:bg-[#E4BC77] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D9AD61] focus-visible:ring-offset-2 focus-visible:ring-offset-[#200000]"
+              >
+                <span>Open Current Rounds</span>
+                <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+              </Link>
+            </div>
           </div>
 
-          <dl className="mt-5 grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-3">
+          <dl className="mt-6 grid gap-4 border-t border-white/15 pt-5 sm:grid-cols-3">
             <div>
-              <dt className="text-xs font-medium text-slate-500">Team Code</dt>
-              <dd className="mt-1 font-mono text-sm font-semibold text-slate-900">
+              <dt className="text-xs font-medium text-white/65">Team Code</dt>
+              <dd className="mt-1 font-mono text-base font-semibold tracking-wide text-[#D9AD61]">
                 {team.contingentCode}
               </dd>
             </div>
             <div>
-              <dt className="text-xs font-medium text-slate-500">Contingent</dt>
-              <dd className="mt-1 text-sm font-medium text-slate-900">
-                {team.contingentName}
+              <dt className="text-xs font-medium text-white/65">
+                Registered Events
+              </dt>
+              <dd className="mt-1 flex items-center gap-2 font-mono text-base font-semibold tabular-nums text-white">
+                <CalendarCheck2
+                  className="h-4 w-4 shrink-0 text-[#D9AD61]"
+                  aria-hidden="true"
+                />
+                <span>
+                  {dashboard.ok ? dashboard.events.length : "Unavailable"}
+                </span>
               </dd>
             </div>
             <div>
-              <dt className="text-xs font-medium text-slate-500">
-                Institution
+              <dt className="text-xs font-medium text-white/65">
+                Device Session
               </dt>
-              <dd className="mt-1 text-sm text-slate-800">
-                {team.institutionName}
+              <dd className="mt-1 flex items-center gap-2 text-sm font-medium text-white">
+                <ShieldCheck
+                  className="h-4 w-4 shrink-0 text-emerald-400"
+                  aria-hidden="true"
+                />
+                <span>Active on this device</span>
               </dd>
             </div>
           </dl>
+        </div>
 
-          <p className="mt-5 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-relaxed text-slate-600">
-            Signing out ends only this device&apos;s session. Other authorised
-            devices signed in for your contingent remain active up to the
-            4-device limit.
-          </p>
+        <div className="border-t border-white/10 bg-[#170000] px-6 py-3 text-xs leading-relaxed text-white/70 sm:px-7">
+          Signing out ends only this device&apos;s session. Other authorised
+          devices signed in for your contingent remain active up to the 4-device
+          limit.
+        </div>
+      </section>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <section
+          aria-labelledby="rounds-shortcut-heading"
+          className="flex h-full flex-col justify-between gap-4 rounded-lg border border-[#E5E1DF] bg-white p-5 sm:p-6"
+        >
+          <div className="flex items-start gap-3.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[#4B0507]/20 bg-[#FDF8F6] text-[#4B0507]">
+              <Layers className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div className="space-y-1">
+              <h2
+                id="rounds-shortcut-heading"
+                className="font-display text-base font-bold text-slate-900"
+              >
+                Current Rounds &amp; Briefs
+              </h2>
+              <p className="text-sm leading-relaxed text-slate-600">
+                Access live competition rounds and read case documents released
+                by the organising committee.
+              </p>
+            </div>
+          </div>
+
+          <div className="pt-1">
+            <Link
+              href="/team/rounds"
+              className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md bg-[#4B0507] px-4 py-2 text-sm font-semibold whitespace-nowrap text-white transition-colors hover:bg-[#380305] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507] focus-visible:ring-offset-2 sm:w-auto"
+            >
+              <span>Go to Current Rounds</span>
+              <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+            </Link>
+          </div>
         </section>
 
         <TeamStandingsDashboardCard />
+      </div>
 
-        <section
-          aria-labelledby="registered-events-heading"
-          className="space-y-4"
-        >
-          <div className="space-y-1">
+      <section aria-labelledby="registered-events-heading" className="space-y-4">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+          <div className="space-y-0.5">
             <h2
               id="registered-events-heading"
-              className="font-display text-lg font-bold text-slate-900"
+              className="font-display text-lg font-bold text-slate-900 sm:text-xl"
             >
               Registered Events
             </h2>
@@ -132,94 +176,110 @@ export default async function TeamPortalPage() {
               active registration or check-in.
             </p>
           </div>
+          {dashboard.ok && dashboard.events.length > 0 ? (
+            <p className="font-mono text-xs tabular-nums text-slate-500">
+              {dashboard.events.length}{" "}
+              {dashboard.events.length === 1 ? "event" : "events"}
+            </p>
+          ) : null}
+        </div>
 
-          {!dashboard.ok ? (
-            <div
-              role="alert"
-              className="rounded-lg border border-amber-300 bg-amber-50 p-5 text-amber-950"
-            >
-              <div className="flex items-start gap-3">
-                <AlertTriangle
-                  className="mt-0.5 h-5 w-5 shrink-0 text-amber-700"
-                  aria-hidden="true"
-                />
-                <div className="space-y-1">
-                  <h3 className="font-display text-sm font-semibold text-amber-950">
-                    Unable to Load Registered Events
-                  </h3>
-                  <p className="text-sm leading-relaxed text-amber-900">
-                    {dashboard.error}
-                  </p>
-                </div>
+        {!dashboard.ok ? (
+          <div
+            role="alert"
+            className="rounded-lg border border-amber-300 bg-amber-50 p-5 text-amber-950"
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle
+                className="mt-0.5 h-5 w-5 shrink-0 text-amber-700"
+                aria-hidden="true"
+              />
+              <div className="space-y-1">
+                <h3 className="font-display text-sm font-semibold text-amber-950">
+                  Unable to Load Registered Events
+                </h3>
+                <p className="text-sm leading-relaxed text-amber-900">
+                  {dashboard.error}
+                </p>
               </div>
             </div>
-          ) : dashboard.events.length === 0 ? (
-            <div className="rounded-lg border border-slate-200 bg-white p-8 text-center">
-              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-500">
-                <ClipboardList className="h-5 w-5" aria-hidden="true" />
-              </div>
-              <h3 className="mt-4 font-display text-base font-semibold text-slate-900">
-                No Registered Events Yet
-              </h3>
-              <p className="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-slate-600">
-                Contingent{" "}
-                <span className="font-mono font-semibold text-slate-800">
-                  {team.contingentCode}
-                </span>{" "}
-                does not currently have any active event registrations
-                (Registered or Checked In). Contact Virtuoso organisers if you
-                expect an entry to appear here.
-              </p>
+          </div>
+        ) : dashboard.events.length === 0 ? (
+          <div className="rounded-lg border border-[#E5E1DF] bg-white p-8 text-center sm:p-10">
+            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-md border border-[#E5E1DF] bg-[#FAF8F6] text-[#4B0507]">
+              <ClipboardList className="h-5 w-5" aria-hidden="true" />
             </div>
-          ) : (
-            <ul className="grid gap-4 sm:grid-cols-2">
-              {dashboard.events.map((item) => {
-                const isCheckedIn = item.entryStatus === "checked_in";
-                return (
-                  <li key={item.entryId}>
-                    <article className="flex h-full flex-col justify-between rounded-lg border border-slate-200 bg-white p-5">
-                      <div>
-                        <div className="flex items-start justify-between gap-3">
-                          <span className="font-mono text-xs font-semibold uppercase tracking-wide text-[#4B0507]">
-                            {item.eventCode}
-                          </span>
-                          <span
-                            className={`shrink-0 rounded border px-2 py-0.5 text-xs font-medium ${
-                              isCheckedIn
-                                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                                : "border-slate-200 bg-slate-50 text-slate-700"
-                            }`}
-                          >
-                            {ENTRY_STATUS_LABELS[item.entryStatus]}
-                          </span>
-                        </div>
-
-                        <h3 className="mt-2 font-display text-base font-bold text-slate-900">
-                          {item.eventName}
-                        </h3>
-
-                        <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                          {item.eventDescription?.trim()
-                            ? item.eventDescription
-                            : "No event description has been added yet."}
-                        </p>
+            <h3 className="mt-4 font-display text-base font-semibold text-slate-900">
+              No Registered Events Yet
+            </h3>
+            <p className="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-slate-600">
+              Contingent{" "}
+              <span className="font-mono font-semibold text-slate-900">
+                {team.contingentCode}
+              </span>{" "}
+              does not currently have any active event registrations (Registered
+              or Checked In). Contact Virtuoso organisers if you expect an entry
+              to appear here.
+            </p>
+          </div>
+        ) : (
+          <ul className="grid gap-4 sm:grid-cols-2">
+            {dashboard.events.map((item) => {
+              const isCheckedIn = item.entryStatus === "checked_in";
+              return (
+                <li key={item.entryId}>
+                  <article className="flex h-full flex-col justify-between rounded-lg border border-[#E5E1DF] bg-white p-5 transition-colors hover:border-[#4B0507]/35">
+                    <div>
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="font-mono text-xs font-semibold uppercase tracking-wide text-[#4B0507]">
+                          {item.eventCode}
+                        </span>
+                        <span
+                          className={`shrink-0 rounded border px-2 py-0.5 text-xs font-medium ${
+                            isCheckedIn
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                              : "border-[#D9AD61]/45 bg-[#FDF9F0] text-[#6B4A10]"
+                          }`}
+                        >
+                          {ENTRY_STATUS_LABELS[item.entryStatus]}
+                        </span>
                       </div>
 
-                      <dl className="mt-4 flex items-center justify-between gap-4 border-t border-slate-100 pt-3 text-xs">
-                        <div className="flex items-center gap-1.5">
-                          <dt className="text-slate-500">Event Status:</dt>
-                          <dd className="font-medium text-slate-800">
-                            {EVENT_STATUS_LABELS[item.eventStatus]}
-                          </dd>
-                        </div>
-                      </dl>
-                    </article>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
+                      <h3 className="mt-2 font-display text-base font-bold text-slate-900 sm:text-lg">
+                        {item.eventName}
+                      </h3>
+
+                      <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                        {item.eventDescription?.trim()
+                          ? item.eventDescription
+                          : "No event description has been added yet."}
+                      </p>
+                    </div>
+
+                    <dl className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#E5E1DF] pt-3 text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <dt className="text-slate-500">Event Status:</dt>
+                        <dd className="font-semibold text-slate-800">
+                          {EVENT_STATUS_LABELS[item.eventStatus]}
+                        </dd>
+                      </div>
+                      {item.eventStatus === "active" ? (
+                        <Link
+                          href="/team/rounds"
+                          className="inline-flex items-center gap-1 font-medium text-[#4B0507] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B0507]"
+                        >
+                          <span>Check Rounds</span>
+                          <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                        </Link>
+                      ) : null}
+                    </dl>
+                  </article>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </TeamPortalShell>
   );
 }

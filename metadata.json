@@ -1,6 +1,8 @@
 {
-  "name": "VIRTUOSO 2026 — Heirs of the Solstice | SJCC",
-  "description": "Official website for VIRTUOSO 2026–27, the premier national-level inter-collegiate management fest presented by the Department of Business Administration, St. Joseph's College of Commerce (Autonomous), Bengaluru.",
+  "name": "Remix Remix Virtuoso",
+  "description": "Imported from GitHub",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
