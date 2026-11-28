@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { viewParticipantRoundDocumentAction } from "@/app/actions/team-documents";
+import { PdfDocumentViewer } from "@/components/team/PdfDocumentViewer";
 import { formatFileSizeBytes } from "@/lib/documents/validation";
 import type {
   ParticipantDocumentViewResult,
@@ -65,7 +66,7 @@ export function ParticipantRoundDocuments({
         if (event.key === "Tab" && dialogRef.current) {
           const focusable = Array.from(
             dialogRef.current.querySelectorAll<HTMLElement>(
-              'a[href], button:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])',
+              'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
             ),
           );
           if (focusable.length === 0) return;
@@ -303,21 +304,25 @@ export function ParticipantRoundDocuments({
               <span className="font-mono font-semibold text-[#D9AD61]">
                 {activeViewer.expiresInSeconds} seconds
               </span>
-              . Use{" "}
+              . Pages render directly below across mobile and desktop. Use{" "}
               <span className="font-semibold text-[#F5F0EC]">Refresh Link</span>{" "}
-              if needed, or{" "}
+              if the link expires, or{" "}
               <span className="font-semibold text-[#F5F0EC]">
                 Open in New Tab
               </span>{" "}
-              on mobile browsers that display only the first page inline.
+              to open externally.
             </div>
 
             <div className="min-h-0 flex-1 bg-[#200000] p-1.5 sm:p-3">
-              <iframe
+              <PdfDocumentViewer
                 key={activeViewer.viewUrl}
-                src={activeViewer.viewUrl}
+                viewUrl={activeViewer.viewUrl}
                 title={activeViewer.title}
-                className="h-full w-full rounded border border-[#542525] bg-white"
+                expiresInSeconds={activeViewer.expiresInSeconds}
+                isRefreshingLink={isRefreshing}
+                onRefreshLink={() =>
+                  openDocument(activeViewer.documentId, true)
+                }
               />
             </div>
           </div>

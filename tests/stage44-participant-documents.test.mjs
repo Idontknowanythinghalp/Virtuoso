@@ -779,10 +779,11 @@ test("Stage 4.4B (6) [Static Structural Check]: Private bucket, server-only read
   assert.match(teamDocActionSource, /TeamAuthError/);
   assert.equal(teamDocActionSource.includes("contingentId"), false);
 
-  // Client viewer uses inline iframe + refresh/close without window.open, download attribute, or server imports
+  // Client viewer uses cross-device PDF.js viewer + refresh/close without iframe, window.open, download attribute, or server imports
   assert.match(viewerSource, /^"use client";/m);
   assert.match(viewerSource, /viewParticipantRoundDocumentAction/);
-  assert.match(viewerSource, /<iframe[\s\S]*src=\{activeViewer\.viewUrl\}/);
+  assert.equal(viewerSource.includes("<iframe"), false);
+  assert.match(viewerSource, /<PdfDocumentViewer[\s\S]*viewUrl=\{activeViewer\.viewUrl\}/);
   assert.equal(viewerSource.includes("window.open"), false);
   assert.equal(viewerSource.includes("window.alert"), false);
   assert.equal(viewerSource.includes("download"), false);
